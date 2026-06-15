@@ -86,6 +86,16 @@ replaced wholesale once a project exists.
 **Cost.** The hand-written type can drift from the migrations until regenerated.
 Low risk at three tables; regeneration is one command.
 
+**Update (after DB went live).** Both regeneration paths are blocked in this
+build environment: `supabase gen types --db-url` spawns a Docker container
+(`postgres-meta`) and Docker is not installed; `--linked` needs a successful
+`supabase link`, which returns `Unauthorized` (the personal access token in use
+lacks management-API scope for this project). The hand-written types remain the
+source of truth; they were validated against the live schema by
+`scripts/verify-db.ts` (all five tables reachable, `hybrid_search` executes). To
+regenerate later: either install Docker, or create a token with project scope and
+re-run `pnpm db:types`.
+
 ### T0.5 - Scaffolded by hand instead of `create-next-app`
 
 **Decision.** Write `package.json`, `tsconfig.json`, Next config, and the app

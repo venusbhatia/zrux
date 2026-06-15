@@ -12,6 +12,8 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export interface Database {
   public: {
+    Views: Record<string, never>
+    CompositeTypes: Record<string, never>
     Tables: {
       context_item: {
         Row: {
