@@ -81,6 +81,13 @@ export default function TodayPage() {
         />
       ) : (
         <div className="flex flex-col gap-3">
+          {data.personalization &&
+            data.personalization.standing + data.personalization.scoped > 0 && (
+              <p className="text-[13px] text-muted">
+                Ordering shaped by {data.personalization.standing + data.personalization.scoped} of
+                your preferences.
+              </p>
+            )}
           {data.cards.map((card, i) => (
             <BriefCard key={card.refs[0]?.item_id ?? i} card={card} />
           ))}

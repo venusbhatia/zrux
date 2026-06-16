@@ -32,10 +32,19 @@ export const todayModelRefSchema = z.object({
 export const todayModelCardSchema = z.object({
   kind: z.enum(CARD_KINDS).describe('Drives the card icon tile.'),
   title: z.string().describe('One short, specific line. No trailing punctuation.'),
-  tag: z.string().describe('Two or three word status label, e.g. "Revenue at risk", "Due in 2 days".'),
-  tagTone: z.enum(TAG_TONES).describe('warn = risk/urgent, blue = info, calm = neutral, green = good, purple = relationship.'),
+  tag: z
+    .string()
+    .describe('Two or three word status label, e.g. "Revenue at risk", "Due in 2 days".'),
+  tagTone: z
+    .enum(TAG_TONES)
+    .describe(
+      'warn = risk/urgent, blue = info, calm = neutral, green = good, purple = relationship.',
+    ),
   body: z.string().describe('One or two sentences of grounded detail. Never use em dashes.'),
-  refs: z.array(todayModelRefSchema).min(1).describe('The CONTEXT items this card draws from, by [n].'),
+  refs: z
+    .array(todayModelRefSchema)
+    .min(1)
+    .describe('The CONTEXT items this card draws from, by [n].'),
 })
 
 export const todayResponseSchema = z.object({
@@ -72,4 +81,9 @@ export interface TodayResponse {
   relaxed: boolean
   empty: boolean
   generatedAt: string
+  // Layer 3 personalization provenance: how many durable preferences shaped the
+  // briefing's ordering. Travels with the payload (not the x-zrux-meta header),
+  // because a precomputed/cached briefing is rendered from this record, not a live
+  // fetch with header access (Phase 4 plan section 9).
+  personalization?: { standing: number; scoped: number }
 }
