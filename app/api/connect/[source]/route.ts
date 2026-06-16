@@ -3,6 +3,7 @@
 // source_connection row so the callback can finalize it. Fast (no ingestion).
 
 import type { NextRequest } from 'next/server'
+import { ComposioMultipleConnectedAccountsError } from '@composio/core'
 import { captureError } from '@/lib/observability/report'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { composio, authConfigId } from '@/lib/connectors/composio'
@@ -30,7 +31,11 @@ export async function POST(
 
   try {
     const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/callback`
-    const connRequest = (await composio().connectedAccounts.initiate(userId, authConfigId(source), {
+    // link() is the supported call for Composio-managed OAuth; initiate() wraps a
+    // legacy endpoint that is retired for redirectable schemes (it throws
+    // ComposioLegacyConnectedAccountsEndpointRetiredError post-cutover). Same
+    // args and return shape; callbackUrl is a valid link option.
+    const connRequest = (await composio().connectedAccounts.link(userId, authConfigId(source), {
       callbackUrl,
     })) as { id: string; redirectUrl?: string }
 
@@ -52,6 +57,13 @@ export async function POST(
       connectedAccountId: connRequest.id,
     })
   } catch (err) {
+    // link() refuses a second account on the same auth config (allowMultiple is
+    // off): the user is already connected. Treat as success so re-clicking
+    // Connect never surfaces the generic error; the callback / poll already keep
+    // the source row in sync.
+    if (err instanceof ComposioMultipleConnectedAccountsError) {
+      return Response.json({ alreadyConnected: true })
+    }
     captureError('connect', err, { userId, source })
     return new Response('Failed to start connection', { status: 502 })
   }
