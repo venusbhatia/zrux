@@ -9,6 +9,7 @@ import { retrieve } from '@/lib/retrieval/pipeline'
 import { isThin, synthesizeStream, REFUSAL } from '@/lib/retrieval/synthesize'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { flushTracing, tracingEnabled } from '@/lib/observability/langfuse'
+import { enqueueLearnPreferences } from '@/lib/personalization/enqueue'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -114,7 +115,15 @@ async function buildAnswer(
     })
   }
 
-  const result = synthesizeStream(question, context, { onFinish: onDone })
+  const result = synthesizeStream(question, context, {
+    onFinish: async (text) => {
+      await onDone?.(text)
+      // Out-of-band: learn durable preferences after the conversation. Fire-and-
+      // forget, guarded so it can never throw into the stream. Skipped on the thin/
+      // refusal path above (that branch returns before reaching here).
+      void enqueueLearnPreferences(userId, question, text)
+    },
+  })
   return result.toTextStreamResponse({
     headers: metaHeaders({
       thin: false,

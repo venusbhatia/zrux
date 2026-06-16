@@ -229,6 +229,30 @@ export async function recordTakeaways(
   }
 }
 
+// Cross-conversation near-duplicate guard (NOT retry idempotency; that is handled
+// at the Trigger.dev boundary with idempotencyKey). Returns true when an existing
+// memory in this tenant is semantically close to the candidate, so the out-of-band
+// learner can skip it and avoid profile bloat. Best-effort: on error returns false
+// (we would rather risk a rare duplicate than silently drop a real preference).
+export async function hasNearDuplicate(
+  userId: string,
+  text: string,
+  threshold = 0.85,
+): Promise<boolean> {
+  try {
+    const res = await client().search.execute({
+      q: text,
+      containerTag: userTag(userId),
+      limit: 1,
+    })
+    const top = res.results?.[0]
+    return Boolean(top && top.score >= threshold)
+  } catch (err) {
+    console.error('[personalization] near-duplicate check failed:', (err as Error).message)
+    return false
+  }
+}
+
 // LIST (explicit path). The founder's standing memories for display/correction.
 export async function listStandingPreferences(userId: string): Promise<Pref[]> {
   return readStanding(userTag(userId))

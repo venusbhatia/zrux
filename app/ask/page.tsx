@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface Citation {
   n: number
@@ -18,6 +18,12 @@ interface Meta {
   itemCount: number
   intent: string
   citations: Citation[]
+  personalization?: { standing: number; scoped: number }
+}
+
+interface Preference {
+  id: string
+  text: string
 }
 
 const PRESETS = [
@@ -47,6 +53,49 @@ export default function AskPage() {
   const [meta, setMeta] = useState<Meta | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [prefs, setPrefs] = useState<Preference[]>([])
+  const [prefText, setPrefText] = useState('')
+  const [prefBusy, setPrefBusy] = useState(false)
+
+  async function loadPrefs() {
+    try {
+      const res = await fetch('/api/remember')
+      if (!res.ok) return
+      const data = (await res.json()) as { preferences: Preference[] }
+      setPrefs(data.preferences ?? [])
+    } catch {
+      // Fail-open: the preferences panel is non-essential to asking questions.
+    }
+  }
+
+  useEffect(() => {
+    void loadPrefs()
+  }, [])
+
+  async function addPref() {
+    const text = prefText.trim()
+    if (!text || prefBusy) return
+    setPrefBusy(true)
+    try {
+      const res = await fetch('/api/remember', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      if (res.ok) {
+        setPrefText('')
+        await loadPrefs()
+      }
+    } finally {
+      setPrefBusy(false)
+    }
+  }
+
+  async function forgetPref(id: string) {
+    setPrefs((prev) => prev.filter((p) => p.id !== id))
+    await fetch(`/api/remember/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    await loadPrefs()
+  }
 
   async function ask(q: string) {
     if (!q.trim() || loading) return
@@ -89,6 +138,90 @@ export default function AskPage() {
       <p style={{ color: 'var(--muted)', marginBottom: 24 }}>
         Grounded answers from your connected tools, with citations.
       </p>
+
+      <div
+        style={{
+          background: '#fafafa',
+          border: '1px solid #e5e5ea',
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 24,
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>
+          PREFERENCES
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 0, marginBottom: 10 }}>
+          Standing priorities that shape how answers are ordered. They never add facts.
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: prefs.length > 0 ? 12 : 0 }}>
+          <input
+            value={prefText}
+            onChange={(e) => setPrefText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void addPref()
+              }
+            }}
+            placeholder="Remember a preference, e.g. triage investor threads first"
+            style={{
+              flex: 1,
+              border: '1px solid #d2d2d7',
+              borderRadius: 10,
+              padding: '8px 12px',
+              fontSize: 14,
+            }}
+          />
+          <button
+            onClick={() => void addPref()}
+            disabled={prefBusy || !prefText.trim()}
+            style={{
+              border: '1px solid #d2d2d7',
+              background: '#fff',
+              borderRadius: 10,
+              padding: '0 14px',
+              fontSize: 14,
+              cursor: prefBusy || !prefText.trim() ? 'default' : 'pointer',
+              opacity: prefBusy || !prefText.trim() ? 0.6 : 1,
+            }}
+          >
+            Remember
+          </button>
+        </div>
+        {prefs.length > 0 && (
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {prefs.map((p) => (
+              <li
+                key={p.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  fontSize: 14,
+                  padding: '4px 0',
+                }}
+              >
+                <span>{p.text}</span>
+                <button
+                  onClick={() => void forgetPref(p.id)}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    color: 'var(--muted)',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Forget
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
         {PRESETS.map((p) => (
@@ -170,6 +303,13 @@ export default function AskPage() {
         </div>
       )}
 
+      {meta?.personalization && meta.personalization.standing + meta.personalization.scoped > 0 && (
+        <div style={{ marginTop: 12, fontSize: 13, color: 'var(--muted)' }}>
+          Ordering shaped by {meta.personalization.standing + meta.personalization.scoped} of your
+          preferences.
+        </div>
+      )}
+
       {meta && meta.citations.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>
@@ -182,7 +322,12 @@ export default function AskPage() {
                   [{c.n}] {c.source} - {c.date}
                 </span>{' '}
                 {c.url ? (
-                  <a href={c.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
+                  <a
+                    href={c.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: 'var(--accent)' }}
+                  >
                     {c.title ?? c.type}
                   </a>
                 ) : (
