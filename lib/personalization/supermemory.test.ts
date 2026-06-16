@@ -160,6 +160,22 @@ describe('correction (ownership)', () => {
     expect(sdk.del).toHaveBeenCalledWith('owned')
   })
 
+  it('finds an owned memory beyond the first page (paginated ownership check)', async () => {
+    sdk.list
+      .mockResolvedValueOnce({
+        memories: [mem('p1a', 'first page'), mem('p1b', 'first page 2')],
+        pagination: { totalPages: 2, currentPage: 1 },
+      })
+      .mockResolvedValueOnce({
+        memories: [mem('target', 'second page')],
+        pagination: { totalPages: 2, currentPage: 2 },
+      })
+    await forgetPreference(USER, 'target')
+    expect(sdk.del).toHaveBeenCalledWith('target')
+    expect(sdk.list).toHaveBeenCalledTimes(2)
+    expect(sdk.list.mock.calls[1]![0]).toMatchObject({ containerTags: [TAG], page: 2 })
+  })
+
   it('raises StillProcessingError when the memory stays 409 (delete-after-add race)', async () => {
     sdk.list.mockResolvedValue({ memories: [mem('owned', 'mine')] })
     sdk.del.mockRejectedValue(Object.assign(new Error('409'), { status: 409 }))

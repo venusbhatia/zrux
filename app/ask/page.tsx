@@ -92,9 +92,21 @@ export default function AskPage() {
   }
 
   async function forgetPref(id: string) {
+    // Optimistic removal, but roll back if the server did not actually delete it
+    // (network error, or a 409 while the preference is still being indexed) so the UI
+    // never shows a preference as gone when it still exists server-side.
+    const snapshot = prefs
     setPrefs((prev) => prev.filter((p) => p.id !== id))
-    await fetch(`/api/remember/${encodeURIComponent(id)}`, { method: 'DELETE' })
-    await loadPrefs()
+    try {
+      const res = await fetch(`/api/remember/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setPrefs(snapshot)
+        return
+      }
+      await loadPrefs()
+    } catch {
+      setPrefs(snapshot)
+    }
   }
 
   async function ask(q: string) {

@@ -271,16 +271,28 @@ export async function listStandingPreferences(userId: string): Promise<Pref[]> {
   return readStanding(userTag(userId))
 }
 
+// Does memoryId belong to this tenant? Scans the tenant-scoped list page by page
+// (every returned doc carries the tag, so membership = ownership). Paginating rather
+// than capping at a single page means a tenant with many preferences can still delete
+// one whose doc falls past the first page. Bounded by MAX_PAGES as a runaway guard.
+async function ownsMemory(tag: string, memoryId: string): Promise<boolean> {
+  const PAGE = 100
+  const MAX_PAGES = 50 // 5000 docs; far above any realistic per-tenant preference count
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const res = await client().documents.list({ containerTags: [tag], limit: PAGE, page })
+    const memories = res.memories ?? []
+    if (memories.some((m) => m.id === memoryId)) return true
+    const totalPages = res.pagination?.totalPages ?? page
+    if (page >= totalPages || memories.length === 0) return false
+  }
+  return false
+}
+
 // CORRECT (explicit path). Delete one memory after an ownership check: the memory
 // must belong to this tenant. We verify membership via the tenant-scoped list
 // rather than a raw get(id), so a cross-tenant id can never be deleted.
 export async function forgetPreference(userId: string, memoryId: string): Promise<void> {
-  const owned = await client().documents.list({
-    containerTags: [userTag(userId)],
-    limit: 200,
-  })
-  const isOwned = (owned.memories ?? []).some((m) => m.id === memoryId)
-  if (!isOwned) throw new OwnershipError(memoryId)
+  if (!(await ownsMemory(userTag(userId), memoryId))) throw new OwnershipError(memoryId)
   // Supermemory returns 409 "Document is still processing" if a memory is deleted
   // mid-ingestion (founder adds a preference then immediately forgets it). Deleting a
   // preference from a prior session is fully processed and succeeds instantly; only the

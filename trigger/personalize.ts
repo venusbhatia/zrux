@@ -94,7 +94,7 @@ export const learnPreferencesTask = task({
   },
   run: async (payload: LearnPreferencesPayload) => {
     // Same flag the read + enqueue paths check, so the whole feature toggles together.
-    if (!(process.env.PERSONALIZATION_ENABLED !== 'false')) {
+    if (process.env.PERSONALIZATION_ENABLED === 'false') {
       return { userId: payload.userId, skipped: 'disabled' as const }
     }
     // Runs outside Next.js, so set up the isolated Langfuse provider here (mirrors
