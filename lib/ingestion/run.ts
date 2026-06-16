@@ -44,11 +44,13 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
   // 3. Embed all chunks for this item in one batch (retried on transient error).
   const embeddings = await withRetry(() => embedTexts(contents))
 
-  // 4. Replace chunks for this item (idempotent reseed), retried on network blips.
-  await withRetry(async () => {
-    const { error } = await db.from('context_chunk').delete().eq('user_id', userId).eq('item_id', item.id)
-    if (error) throw new Error(`chunk delete ${raw.source}/${raw.externalId}: ${error.message}`)
-  })
+  // 4. Replace chunks for this item (idempotent reseed). Delete + insert live in
+  // ONE retry block so each attempt re-runs both: a retry after a partially- or
+  // fully-applied insert first deletes those rows, then re-inserts, so a
+  // committed-but-network-errored insert cannot leave duplicate chunks (there is
+  // no unique constraint on context_chunk), and there is no orphan window between
+  // the two ops. If all retries are exhausted the per-item catch skips the item;
+  // it self-heals on the next run.
   const rows = contents.map((content, i) => ({
     user_id: userId,
     item_id: item.id,
@@ -59,8 +61,10 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
     embedding: toVectorLiteral(embeddings[i]!),
   }))
   await withRetry(async () => {
-    const { error } = await db.from('context_chunk').insert(rows)
-    if (error) throw new Error(`chunk insert ${raw.source}/${raw.externalId}: ${error.message}`)
+    const del = await db.from('context_chunk').delete().eq('user_id', userId).eq('item_id', item.id)
+    if (del.error) throw new Error(`chunk delete ${raw.source}/${raw.externalId}: ${del.error.message}`)
+    const ins = await db.from('context_chunk').insert(rows)
+    if (ins.error) throw new Error(`chunk insert ${raw.source}/${raw.externalId}: ${ins.error.message}`)
   })
 
   return rows.length
@@ -75,8 +79,13 @@ export async function ingestItems(
   let itemCount = 0
   let chunkCount = 0
   let failures = 0
+  // Bound the cap on items CONSUMED from the stream, not just successes, so a
+  // burst of failing items can't drain the source far past maxItems (and burn
+  // Composio / source quota).
+  let attempted = 0
 
   for await (const raw of items) {
+    attempted++
     // Per-item isolation: one bad item must not abort a 90-day load.
     try {
       chunkCount += await ingestOne(userId, raw)
@@ -85,7 +94,7 @@ export async function ingestItems(
       failures++
       console.error(`[ingest] skipped ${raw.source}/${raw.externalId}:`, (err as Error).message)
     }
-    if (opts.maxItems && itemCount >= opts.maxItems) break
+    if (opts.maxItems && attempted >= opts.maxItems) break
   }
 
   if (opts.updateSyncState !== false) {
