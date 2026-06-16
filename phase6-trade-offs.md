@@ -33,4 +33,74 @@ alternative not taken, and why. Companion to `trade-offs.md` (whole-system) and
   and it is polish, not core. The layout, copy, and visual payload are preserved;
   the scrub can be added last only if time remains.
 
-<!-- further entries appended as the build proceeds -->
+## Landing CSS: global `.lp`-scoped stylesheet, not a CSS module
+- **Decision:** Port the landing CSS into a plain `app/(marketing)/landing.css`
+  with every rule scoped under a single `.lp` root class, rather than a CSS
+  module with hashed names.
+- **Alternative:** A CSS module (`landing.module.css`).
+- **Why:** The reveal motion island observes elements by the literal `.reveal`
+  class via `IntersectionObserver`. Hashed module names would break that selector
+  without wrapping every revealed node in a component. The `.lp` prefix keeps the
+  semantic class names from leaking into the Tailwind-styled app (the two route
+  groups never render together anyway).
+
+## Landing assembly: static, not scroll-scrubbed (as planned)
+- **Decision:** The `#assemble` section renders the five source fragments and the
+  assembled brief as static reveal-animated cards.
+- **Alternative:** The prototype's 260vh sticky scroll-scrub that converges the
+  fragments into the brief on scroll.
+- **Why:** The scrub is fragile manual scroll math and pure polish. The narrative
+  and visual payload are preserved without the risk. Documented as a later add.
+
+## Today badge: sessionStorage handoff, not a count endpoint
+- **Decision:** The sidebar Today badge reads `zrux:today-count` from
+  sessionStorage, written by the Today page after it loads `/api/today`.
+- **Alternative:** A dedicated `/api/today?countOnly=1` the sidebar calls itself.
+- **Why:** `/api/today` runs a full retrieval + an LLM call. Having the sidebar
+  trigger its own count would double that cost on every navigation. The badge is
+  best-effort and updates as soon as the user opens Today.
+
+## Search: matchPercent is normalized, planning runs per settled query
+- **Decision:** `matchPercent` is `round(score / topScore * 100)` clamped to
+  `[40, 99]` (hybrid RRF scores are not a 0-100 scale). The planner LLM call runs
+  once per debounced (350ms) settled query, not per keystroke, with an
+  AbortController cancelling in-flight requests.
+- **Alternative:** Surface raw scores; or skip planning and embed the raw query.
+- **Why:** Normalization makes the leader read high and the tail readable like the
+  mock. Reusing `planQuery` keeps keyword/semantic extraction quality; debounce +
+  abort keeps the per-keystroke LLM cost bounded.
+
+## Relationships: deterministic radial layout, capped at 24 nodes, no d3-force
+- **Decision:** Hand-rolled radial layout (focal = highest-degree node centered,
+  neighbors on rings), capped at 24 visible nodes by degree with a "+N more"
+  count, rendered as SVG. Detail-panel "recent signals" and "last touch" are
+  derived from the edges already returned by `/api/graph` (no per-entity fetch).
+- **Alternative:** `d3-force` physics layout; a dedicated signals endpoint.
+- **Why:** Real founder graphs are messy; a cap + deterministic layout stays
+  readable and stable between renders (no jitter), with zero new dependency.
+  Deriving signals from edges avoids an extra round-trip and keeps the panel
+  honest to the graph data.
+
+## Onboarding unlock: connection itemCount, not just OAuth status
+- **Decision:** `/api/connections` returns a per-source `itemCount` (cheap
+  head-count) and `lastSyncedAt`; onboarding unlocks the app when any source has
+  `itemCount > 0`. A "Skip for now" escape is always available.
+- **Alternative:** Unlock on `status === 'active'` (OAuth finalized) alone.
+- **Why:** `active` means the load was enqueued, not that data is queryable.
+  Gating on real item counts makes "Ready" honest; the skip escape avoids trapping
+  the user behind a slow ingest.
+
+## Ask mic + voice input: visual affordance only
+- **Decision:** The Ask composer renders the mic button but it is non-functional
+  this phase (tooltip "Voice input coming soon").
+- **Alternative:** Wire Deepgram streaming STT now.
+- **Why:** Tap-to-talk is an explicit stretch (spec D12 / Phase 7). Keeping the
+  affordance preserves the mockup without committing the streaming-STT surface.
+
+## Dev verification: copy gitignored `.env.local` into the worktree
+- **Decision:** For local build/dev verification, `.env.local` was copied from the
+  main checkout into the worktree (it stays gitignored, never committed).
+- **Why:** Several modules instantiate API clients at import time, so `next build`
+  and `next dev` require the env to be present even to collect page data. The fresh
+  worktree does not inherit gitignored files. Not a code change; verification only.
+
