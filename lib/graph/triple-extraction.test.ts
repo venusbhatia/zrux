@@ -1,4 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// The module under test transitively imports lib/observability/langfuse, which
+// loads @langfuse/otel at module scope - unresolvable under the vitest node env.
+// Stub it (the pure fns under test never use it) so the suite can load.
+vi.mock('../observability/langfuse', () => ({ aiTelemetry: () => ({ isEnabled: false }) }))
+
 import { shouldExtract, isNamedEntity } from './triple-extraction'
 
 describe('shouldExtract (triple-extraction gating)', () => {
