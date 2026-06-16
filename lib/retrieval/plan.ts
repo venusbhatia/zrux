@@ -3,7 +3,7 @@
 
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import { chatModel, withRetry } from '../llm/gateway'
+import { callWithFallback } from '../llm/gateway'
 import { aiTelemetry } from '../observability/langfuse'
 import type { RetrievalPlan } from './types'
 
@@ -45,9 +45,12 @@ Rules:
 - recency_weight: 0.3 for daily_briefing and company_summary; 0 for lookup; otherwise 0.1.`
 
 export async function planQuery(question: string, now: Date = new Date()): Promise<RetrievalPlan> {
-  const { object } = await withRetry(() =>
+  // callWithFallback wraps the call in the circuit breaker + retry, then falls
+  // back to the secondary model. On a full outage it throws GatewayDownError,
+  // which the answer route catches to degrade gracefully.
+  const { object } = await callWithFallback((model) =>
     generateObject({
-      model: chatModel(),
+      model,
       schema: planSchema,
       system: PLAN_SYSTEM,
       prompt: `Current time: ${now.toISOString()}\n\nFounder question: ${question}`,

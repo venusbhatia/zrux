@@ -4,6 +4,7 @@
 // relevance-ranked (no time decay), with optional source-chip filtering.
 
 import type { NextRequest } from 'next/server'
+import { captureError } from '@/lib/observability/report'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { planQuery } from '@/lib/retrieval/plan'
 import { embedText } from '@/lib/ingestion/embed'
@@ -23,7 +24,9 @@ const SNIPPET_LEN = 220
 // snippet shows real text, then window it around the first matched term.
 function buildSnippet(content: string, terms: string[]): string {
   const parts = content.split('\n\n')
-  const body = (parts.length > 1 ? parts.slice(1).join('\n\n') : content).replace(/\s+/g, ' ').trim()
+  const body = (parts.length > 1 ? parts.slice(1).join('\n\n') : content)
+    .replace(/\s+/g, ' ')
+    .trim()
   if (body.length === 0) return ''
   const lower = body.toLowerCase()
   let at = -1
@@ -110,7 +113,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     })
     return Response.json(payload)
   } catch (err) {
-    console.error(`[search] failed user=${userId} q="${q}":`, err)
+    captureError('search', err, { userId, q })
     return new Response('Search temporarily unavailable', { status: 502 })
   }
 }

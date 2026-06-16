@@ -5,6 +5,7 @@
 // log and the load can be kicked manually (scripts/run-ingest.ts).
 
 import type { NextRequest } from 'next/server'
+import { captureError } from '@/lib/observability/report'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { composio } from '@/lib/connectors/composio'
 import { createServiceClient } from '@/lib/db/supabase'
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     .eq('user_id', userId)
     .eq('status', 'initiated')
   if (error) {
-    console.error(`[oauth/callback] list pending failed user=${userId}:`, error.message)
+    captureError('oauth/callback', new Error(error.message), { userId, stage: 'list-pending' })
     return Response.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/onboarding?error=1`, 302)
   }
 
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest): Promise<Response> {
         await enqueueLoad(userId, conn.source)
       }
     } catch (err) {
-      console.error(`[oauth/callback] finalize ${conn.source} failed user=${userId}:`, err)
+      captureError('oauth/callback', err, { userId, source: conn.source, stage: 'finalize' })
     }
   }
 

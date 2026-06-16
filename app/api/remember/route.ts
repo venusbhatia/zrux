@@ -6,6 +6,7 @@
 import type { NextRequest } from 'next/server'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { rememberPreference, listStandingPreferences } from '@/lib/personalization/supermemory'
+import { captureError } from '@/lib/observability/report'
 
 export const runtime = 'nodejs'
 
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     await rememberPreference(user, text, { kind: 'standing' })
     return Response.json({ ok: true }, { status: 201 })
   } catch (err) {
-    console.error(`[remember] add failed user=${user}:`, err)
+    captureError('remember', err, { userId: user, op: 'add' })
     return new Response('Could not save preference', { status: 502 })
   }
 }
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     const preferences = await listStandingPreferences(user)
     return Response.json({ preferences })
   } catch (err) {
-    console.error(`[remember] list failed user=${user}:`, err)
+    captureError('remember', err, { userId: user, op: 'list' })
     // Fail-open: an unreachable Supermemory should not break the Ask UI.
     return Response.json({ preferences: [] })
   }

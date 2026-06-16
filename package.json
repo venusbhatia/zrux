@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "eval": "tsx eval/run.ts",
+    "eval:seed": "tsx eval/seed.ts",
     "db:types": "supabase gen types typescript --linked > lib/db/types.ts"
   },
   "dependencies": {
@@ -25,7 +26,9 @@
     "@sentry/nextjs": "^10.58.0",
     "@supabase/supabase-js": "^2.45.0",
     "@trigger.dev/sdk": "^4.4.6",
+    "@upstash/redis": "^1.38.0",
     "ai": "^4.3.0",
+    "cohere-ai": "^8.0.0",
     "next": "^14.2.0",
     "next-auth": "^4.24.0",
     "react": "^18.3.0",

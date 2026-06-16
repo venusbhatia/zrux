@@ -5,7 +5,9 @@
 import { createServiceClient } from '../db/supabase'
 import type { RolledItem, SearchHit } from './types'
 
-const MAX_ITEMS = 12
+// Phase 5: tightened from 12 to 8. The rail (rerank score filter) already drops
+// distant chunks; the cap is the final guard against synthesis-prompt bloat.
+const MAX_ITEMS = 8
 
 // Round-robin items across sources by descending score: best of each source,
 // then second-best of each, and so on. Keeps a high-volume source from filling

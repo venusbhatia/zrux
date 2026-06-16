@@ -14,6 +14,7 @@ import { enrichChunk } from './enrich'
 import { setSyncState } from '../db/sync-state'
 import { withRetry } from '../llm/gateway'
 import { extractAndResolve } from '../graph/entity-resolution'
+import { captureError } from '../observability/report'
 
 export interface IngestStats {
   items: number
@@ -77,10 +78,12 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
     try {
       await extractAndResolve(userId, raw, item.id)
     } catch (err) {
-      console.error(
-        `[graph] extract/resolve skipped ${raw.source}/${raw.externalId}:`,
-        (err as Error).message,
-      )
+      captureError('ingest:graph', err, {
+        userId,
+        source: raw.source,
+        externalId: raw.externalId,
+        stage: 'extract-resolve',
+      })
     }
   }
 
@@ -109,7 +112,12 @@ export async function ingestItems(
       itemCount++
     } catch (err) {
       failures++
-      console.error(`[ingest] skipped ${raw.source}/${raw.externalId}:`, (err as Error).message)
+      captureError('ingest', err, {
+        userId,
+        source: raw.source,
+        externalId: raw.externalId,
+        stage: 'ingest-one',
+      })
     }
     if (opts.maxItems && attempted >= opts.maxItems) break
   }
