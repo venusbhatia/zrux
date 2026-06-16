@@ -106,12 +106,23 @@ or consistency behaviors that a mocked test cannot model. The live script is kep
 saturate the free-tier processing queue and make fresh writes lag the read window,
 which is a test-harness artifact, not a product bug).
 
-> Note: full `/api/answer` end-to-end could not be exercised on the connected
-> Supabase instance because an unrelated, pre-existing DB function
-> (`public.distinct_sources`, used by `lib/retrieval/search.ts` at Stage 2) is not
-> deployed there, so retrieval fails before personalization is reached. The
-> answer-path personalization wiring is covered by the route/pipeline/assemble unit
-> tests and the live module verify instead.
+> Note: full `/api/answer` end-to-end was initially blocked because an unrelated,
+> pre-existing DB function (`public.distinct_sources`, migration `0005`, used by
+> `lib/retrieval/search.ts` at Stage 2) had drifted out of the connected Supabase
+> instance (`hybrid_search` from `0002` was present, `0005` was not). Applying the
+> existing migration to the remote DB resolved it. The full answer-path round-trip
+> then verified live on the demo tenant: no preference leads with the payments
+> webhook; adding "triage investor threads first" makes the answer lead with the
+> Northwind investor thread (`personalization.standing = 1`, citations intact);
+> deleting it reverts to webhook-first; a precise `lookup` carries no profile.
+>
+> One prompt change came out of that live test: the FOUNDER PROFILE rule in
+> `SYNTH_SYSTEM` was too soft ("use it only to order and emphasize"), so the model
+> kept leading with its own urgency judgment (a production outage) even with an
+> explicit "investors first, ahead of engineering issues" preference. Tightened to
+> "lead with the items that match the stated ordering preference, even when others
+> seem more urgent", which made the reorder actually visible while leaving grounding
+> and citation rules unchanged.
 
 ## Design tradeoffs (deliberate)
 
