@@ -27,6 +27,16 @@ const tripleSchema = z.object({
 
 export type Triple = z.infer<typeof tripleSchema>['triples'][number]
 
+// Reject placeholder / generic names the model sometimes emits despite the
+// prompt, so they never become graph nodes ("<UNKNOWN>", "the team", "us").
+const JUNK_NAME = /^(unknown|n\/?a|none|null|someone|the team|our team|us|them|they|it)$/i
+export function isNamedEntity(name: string): boolean {
+  const n = name.trim()
+  if (n.length < 2) return false
+  if (n.includes('<') || n.includes('>')) return false
+  return !JUNK_NAME.test(n)
+}
+
 // High-signal sources only (CLAUDE.md §9.3 / "What NOT to do"). meetings come in
 // as type 'meeting' regardless of source.
 const HIGH_SIGNAL_SOURCES = new Set(['gmail', 'calendar', 'notion', 'linear'])
@@ -65,8 +75,11 @@ export async function extractTriples(item: RawItem): Promise<Triple[]> {
       experimental_telemetry: aiTelemetry('triple-extraction'),
     }),
   )
-  // Drop self-loops and empty names defensively.
+  // Drop self-loops and placeholder/generic names defensively.
   return object.triples.filter(
-    (t) => t.subject.trim() && t.object.trim() && t.subject.trim() !== t.object.trim(),
+    (t) =>
+      isNamedEntity(t.subject) &&
+      isNamedEntity(t.object) &&
+      t.subject.trim().toLowerCase() !== t.object.trim().toLowerCase(),
   )
 }
