@@ -1,4 +1,4 @@
--- 0005_entity_resolution.sql
+-- 0006_entity_resolution.sql
 -- Fuzzy entity name matching for Layer 2 resolution. Email is the canonical key
 -- (handled by the unique index in 0001); this covers the no-email case: match a
 -- mentioned name against existing entities of the same type via pg_trgm

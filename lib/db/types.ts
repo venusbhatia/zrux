@@ -221,6 +221,14 @@ export interface Database {
           sim: number
         }[]
       }
+      distinct_sources: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: {
+          source: string
+        }[]
+      }
     }
     Enums: Record<string, never>
   }

@@ -69,13 +69,19 @@ function pageTitle(page: NotionPage): string {
 // NOTION_GET_PAGE_MARKDOWN returns the page body as a Markdown string; the exact
 // key under data varies by toolkit version, so scan the common shapes.
 function extractMarkdown(data: Record<string, unknown>): string {
-  const candidate =
-    data.markdown ?? data.content ?? data.page_markdown ?? data.text ?? data.response
+  const candidate = data.markdown ?? data.content ?? data.page_markdown ?? data.text
   if (typeof candidate === 'string') return candidate.trim()
   // Some versions nest under data.markdown.content or similar.
   if (candidate && typeof candidate === 'object') {
     const inner = (candidate as Record<string, unknown>).content
     if (typeof inner === 'string') return inner.trim()
+  }
+  // `data.response` is a generic Composio success-message field on many actions
+  // (e.g. "Action completed successfully."), not a markdown-specific key. Only
+  // accept it when it's substantial enough to be real page content, never a
+  // short status string that would otherwise be stored verbatim as the body.
+  if (typeof data.response === 'string' && data.response.trim().length > 50) {
+    return data.response.trim()
   }
   return ''
 }
