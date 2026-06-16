@@ -10,9 +10,25 @@ import type { Connector, ExternalId, RawItem, SyncContext } from './types'
 import { executeTool } from './composio'
 import { warnOnUndercollection } from './util'
 
+// Slugs verified against the live Composio Notion toolkit. SEARCH lists pages by
+// title/last_edited; GET_PAGE_MARKDOWN returns a page's full body as Markdown in
+// one call (simpler + more faithful than walking the block tree).
 const SEARCH = 'NOTION_SEARCH_NOTION_PAGE'
-const FETCH_BLOCKS = 'NOTION_FETCH_NOTION_BLOCK_CONTENTS'
+const FETCH_MARKDOWN = 'NOTION_GET_PAGE_MARKDOWN'
 const PAGE = 50
+
+// Shared flat search params (NOTION_SEARCH_NOTION_PAGE takes flat fields, not the
+// nested filter/sort objects of the raw Notion REST API).
+function searchArgs(cursor?: string): Record<string, unknown> {
+  return {
+    page_size: PAGE,
+    filter_property: 'object',
+    filter_value: 'page',
+    direction: 'descending',
+    timestamp: 'last_edited_time',
+    ...(cursor ? { start_cursor: cursor } : {}),
+  }
+}
 
 interface RichText {
   plain_text?: string
@@ -35,15 +51,6 @@ interface SearchResponse {
   has_more?: boolean
   next_cursor?: string
 }
-interface Block {
-  type?: string
-  [key: string]: unknown
-}
-interface BlocksResponse {
-  results?: Block[]
-  has_more?: boolean
-  next_cursor?: string
-}
 
 // Pull the page title out of whichever property is typed 'title'.
 function pageTitle(page: NotionPage): string {
@@ -59,37 +66,23 @@ function pageTitle(page: NotionPage): string {
   return '(untitled page)'
 }
 
-// Concatenate plain_text across a block's rich_text array, regardless of block
-// type (paragraph, heading_*, bulleted_list_item, ...). Notion nests the
-// rich_text under a key equal to the block's `type`.
-function blockText(block: Block): string {
-  const body = block.type
-    ? (block[block.type] as { rich_text?: RichText[] } | undefined)
-    : undefined
-  const rich = body?.rich_text
-  if (!Array.isArray(rich)) return ''
-  return rich
-    .map((r) => r.plain_text ?? '')
-    .join('')
-    .trim()
+// NOTION_GET_PAGE_MARKDOWN returns the page body as a Markdown string; the exact
+// key under data varies by toolkit version, so scan the common shapes.
+function extractMarkdown(data: Record<string, unknown>): string {
+  const candidate =
+    data.markdown ?? data.content ?? data.page_markdown ?? data.text ?? data.response
+  if (typeof candidate === 'string') return candidate.trim()
+  // Some versions nest under data.markdown.content or similar.
+  if (candidate && typeof candidate === 'object') {
+    const inner = (candidate as Record<string, unknown>).content
+    if (typeof inner === 'string') return inner.trim()
+  }
+  return ''
 }
 
 async function fetchPageBody(userId: string, pageId: string): Promise<string> {
-  const lines: string[] = []
-  let cursor: string | undefined
-  do {
-    const data = (await executeTool(FETCH_BLOCKS, userId, {
-      block_id: pageId,
-      page_size: PAGE,
-      ...(cursor ? { start_cursor: cursor } : {}),
-    })) as BlocksResponse
-    for (const block of data.results ?? []) {
-      const text = blockText(block)
-      if (text) lines.push(text)
-    }
-    cursor = data.has_more ? data.next_cursor || undefined : undefined
-  } while (cursor)
-  return lines.join('\n\n')
+  const data = await executeTool(FETCH_MARKDOWN, userId, { page_id: pageId })
+  return extractMarkdown(data)
 }
 
 async function toRawItem(userId: string, page: NotionPage): Promise<RawItem | null> {
@@ -128,12 +121,9 @@ async function* fetchAll(userId: string, since?: Date): AsyncIterable<RawItem> {
   let collected = 0
   let reportedTotal: number | undefined
   do {
-    const data = (await executeTool(SEARCH, userId, {
-      page_size: PAGE,
-      filter: { property: 'object', value: 'page' },
-      sort: { direction: 'descending', timestamp: 'last_edited_time' },
-      ...(cursor ? { start_cursor: cursor } : {}),
-    })) as SearchResponse & { total?: number }
+    const data = (await executeTool(SEARCH, userId, searchArgs(cursor))) as SearchResponse & {
+      total?: number
+    }
     if (typeof data.total === 'number') reportedTotal = data.total
     const results = data.results ?? []
     let stop = false
@@ -172,12 +162,7 @@ export const notionConnector: Connector = {
     // Id-only walk for deletion detection: search ids without fetching bodies.
     let cursor: string | undefined
     do {
-      const data = (await executeTool(SEARCH, ctx.userId, {
-        page_size: PAGE,
-        filter: { property: 'object', value: 'page' },
-        sort: { direction: 'descending', timestamp: 'last_edited_time' },
-        ...(cursor ? { start_cursor: cursor } : {}),
-      })) as SearchResponse
+      const data = (await executeTool(SEARCH, ctx.userId, searchArgs(cursor))) as SearchResponse
       for (const page of data.results ?? []) {
         if (page.id && page.object === 'page') yield page.id
       }

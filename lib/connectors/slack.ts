@@ -11,7 +11,9 @@ import type { Connector, ExternalId, RawItem, SyncContext } from './types'
 import { executeTool } from './composio'
 import { warnOnUndercollection } from './util'
 
-const LIST_CHANNELS = 'SLACK_LIST_ALL_SLACK_TEAM_CHANNELS_WITH_VARIOUS_FILTERS'
+// Slugs verified against the live Composio Slack toolkit (157 tools). conversations.list
+// maps to SLACK_LIST_ALL_CHANNELS; conversations.history to SLACK_FETCH_CONVERSATION_HISTORY.
+const LIST_CHANNELS = 'SLACK_LIST_ALL_CHANNELS'
 const FETCH_HISTORY = 'SLACK_FETCH_CONVERSATION_HISTORY'
 const PAGE = 100
 
@@ -84,6 +86,8 @@ async function* listMemberChannels(userId: string): AsyncIterable<SlackChannel> 
   do {
     const data = (await executeTool(LIST_CHANNELS, userId, {
       limit: PAGE,
+      types: 'public_channel,private_channel',
+      exclude_archived: true,
       ...(cursor ? { cursor } : {}),
     })) as ChannelsResponse
     for (const ch of data.channels ?? []) {

@@ -19,8 +19,8 @@ export interface RetrievalResult {
 export async function retrieve(userId: string, question: string): Promise<RetrievalResult> {
   const plan = await planQuery(question)
   const queryEmbedding = await embedText(plan.semantic_query || question)
-  const { hits, relaxed } = await hybridSearch(userId, plan, queryEmbedding)
-  const items = await rollupToItems(userId, hits)
+  const { hits, relaxed, diversify } = await hybridSearch(userId, plan, queryEmbedding)
+  const items = await rollupToItems(userId, hits, { diversify })
   const context = assembleContext(items)
   return { plan, context, relaxed, itemCount: items.length }
 }

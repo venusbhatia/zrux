@@ -14,7 +14,7 @@ async function collect<T>(it: AsyncIterable<T>): Promise<T[]> {
 describe('notionConnector', () => {
   beforeEach(() => executeTool.mockReset())
 
-  it('extracts the title, assembles block text, and stops past the cutoff', async () => {
+  it('extracts the title, pulls page markdown, and stops past the cutoff', async () => {
     executeTool
       // SEARCH (page newer than cutoff, then one older that halts paging)
       .mockResolvedValueOnce({
@@ -37,16 +37,8 @@ describe('notionConnector', () => {
         has_more: true,
         next_cursor: 'c2',
       })
-      // FETCH_BLOCKS for p1
-      .mockResolvedValueOnce({
-        results: [
-          {
-            type: 'paragraph',
-            paragraph: { rich_text: [{ plain_text: 'Ship the context engine.' }] },
-          },
-          { type: 'heading_1', heading_1: { rich_text: [{ plain_text: 'Goals' }] } },
-        ],
-      })
+      // NOTION_GET_PAGE_MARKDOWN for p1
+      .mockResolvedValueOnce({ markdown: 'Ship the context engine.\n\n## Goals' })
 
     const items = await collect(
       notionConnector.load({ userId: 'u1', source: 'notion', lookbackDays: 90, cursor: null }),
@@ -66,7 +58,7 @@ describe('notionConnector', () => {
     expect(items[0]!.body).toContain('Goals')
   })
 
-  it('falls back to the title when block fetch fails', async () => {
+  it('falls back to the title when the markdown fetch fails', async () => {
     executeTool
       .mockResolvedValueOnce({
         results: [
