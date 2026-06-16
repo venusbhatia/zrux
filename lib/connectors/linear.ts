@@ -5,7 +5,7 @@
 import type { Connector, ExternalId, RawItem, SyncContext } from './types'
 import { executeTool } from './composio'
 
-const SLUG = 'LINEAR_LIST_ISSUES'
+const SLUG = 'LINEAR_LIST_LINEAR_ISSUES'
 const PAGE = 50
 
 interface LinearIssue {

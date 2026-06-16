@@ -60,7 +60,7 @@ export async function ingestItems(
   userId: string,
   source: string,
   items: AsyncIterable<RawItem> | RawItem[],
-  opts: { syncCursor?: string | null; updateSyncState?: boolean } = {},
+  opts: { syncCursor?: string | null; updateSyncState?: boolean; maxItems?: number } = {},
 ): Promise<IngestStats> {
   let itemCount = 0
   let chunkCount = 0
@@ -68,6 +68,7 @@ export async function ingestItems(
   for await (const raw of items) {
     chunkCount += await ingestOne(userId, raw)
     itemCount++
+    if (opts.maxItems && itemCount >= opts.maxItems) break
   }
 
   if (opts.updateSyncState !== false) {

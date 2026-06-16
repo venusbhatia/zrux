@@ -17,6 +17,9 @@ function requireEnv(name: string): string {
 let client: Composio | null = null
 
 export function composio(): Composio {
+  // Manual tool execution requires an explicit toolkit version; we pass
+  // dangerouslySkipVersionCheck per execute call (see executeTool / trade-offs
+  // T1.13). Pinning toolkitVersions per source is the production-hardening lever.
   if (!client) client = new Composio({ apiKey: requireEnv('COMPOSIO_API_KEY') })
   return client
 }
@@ -44,7 +47,13 @@ export async function executeTool(
   userId: string,
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const res = (await composio().tools.execute(slug, { userId, arguments: args })) as {
+  const res = (await composio().tools.execute(slug, {
+    userId,
+    arguments: args,
+    // "latest" toolkit version is allowed only with this flag in manual
+    // execution (see trade-offs T1.13; pin toolkitVersions for production).
+    dangerouslySkipVersionCheck: true,
+  } as Parameters<ReturnType<typeof composio>['tools']['execute']>[1])) as {
     data?: Record<string, unknown>
     successful?: boolean
     error?: unknown

@@ -37,3 +37,6 @@ supabase/.temp
 
 # misc
 Assignment.pdf
+
+# Claude Code local worktrees/jobs
+.claude/

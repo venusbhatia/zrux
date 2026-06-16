@@ -290,3 +290,51 @@ synthetic stream against real services) and runnable manually
 (`scripts/run-ingest.ts`) without the Trigger.dev runtime.
 
 **Cost.** None; this is the clean seam.
+
+### T1.13 - Composio: skip version check + corrected tool slugs (verified live)
+
+**Context.** Verifying against a real connected account surfaced three things the
+research could not: (1) `@composio/core` refuses manual `tools.execute` on the
+"latest" toolkit version unless `dangerouslySkipVersionCheck: true` is passed
+**per execute call**; (2) the Linear list slug is `LINEAR_LIST_LINEAR_ISSUES`,
+not `LINEAR_LIST_ISSUES`; (3) Gmail (`GMAIL_FETCH_EMAILS`) and Calendar
+(`GOOGLECALENDAR_EVENTS_LIST`) slugs were correct.
+
+**Decision.** Pass `dangerouslySkipVersionCheck: true` in `executeTool`; fix the
+Linear slug. Live ingest now works for Gmail, Calendar, and Linear.
+
+**Why.** Gets real data flowing now. The flag uses the latest toolkit version.
+
+**Cost.** A new toolkit version could change a response shape and (silently or
+not) break a mapper. Production hardening is to pin `toolkitVersions` per source
+(or `COMPOSIO_TOOLKIT_VERSION_<SLUG>` env) once the exact version strings are
+chosen, then drop the skip flag. Tracked as a known follow-up.
+
+### T1.14 - Composio user id decoupled from the stored uuid (verification only)
+
+**Context.** The account was connected in Composio under user id
+`pg-test-<uuid>`, which is not a valid Postgres `uuid`.
+
+**Decision.** `scripts/run-ingest.ts` fetches from Composio with the full id and
+stores under the embedded uuid. In the real app flow this never happens: the
+NextAuth session uuid is used as the Composio user id on connect, so they match.
+
+**Why.** Avoids asking for a reconnect just to verify the pipeline.
+
+**Cost.** A verification-script-only split; no impact on the app code path.
+
+---
+
+## Live verification result (real data)
+
+With one tenant's real Gmail (12 emails) + Calendar (1 event) + Linear (4
+issues) ingested through the full pipeline:
+
+- "What should I focus on today?" -> correctly identified the inbox as mostly
+  tool-onboarding noise and surfaced the two real action items, each cited.
+- "Summarize investor activity this week" -> correctly REFUSED (no investor
+  emails exist; nothing was invented). The strongest grounding signal.
+- "What follow-ups am I missing?" -> accurate, no hallucination.
+
+Gmail + Calendar (the assignment minimum) plus Linear all ingest and answer over
+real data. The Composio fetch layer (T1.9) is now verified, not just the core.
