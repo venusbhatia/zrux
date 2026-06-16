@@ -2,14 +2,14 @@ import { defineConfig } from 'vitest/config'
 import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
-  // Mirror the tsconfig "@/*" path alias so route-handler tests (which import via
-  // "@/lib/...") resolve under vitest.
   resolve: {
-    alias: [{ find: /^@\//, replacement: fileURLToPath(new URL('./', import.meta.url)) }],
+    // Mirror the tsconfig "@/*" path alias so App Router route handlers (which
+    // import via "@/lib/...") resolve under vitest.
+    alias: { '@': fileURLToPath(new URL('.', import.meta.url)) },
   },
   test: {
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'app/**/*.test.ts'],
+    include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'trigger/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/.next/**', 'dist'],
     // Dummy keys so modules that read env at import (e.g. the LLM gateway) load in
     // pure-logic unit tests. Tests never call out; real keys come from .env.local.

@@ -22,6 +22,13 @@ vi.mock('@/lib/observability/langfuse', () => ({ tracingEnabled: false, flushTra
 // @langfuse/tracing is imported at module scope but unresolvable under vitest; it
 // is only called when tracing is enabled (mocked off here).
 vi.mock('@langfuse/tracing', () => ({ propagateAttributes: vi.fn(), startActiveObservation: vi.fn() }))
+// Preference learning is fire-and-forget out of the stream's onFinish; stub it so
+// the route does not reach into Supermemory during the test.
+vi.mock('@/lib/personalization/enqueue', () => ({ enqueueLearnPreferences: vi.fn() }))
+
+// retrieve() returns a founder profile the route reads counts off of; every mock
+// resolution supplies one so route code paths do not throw on undefined.
+const PROFILE = { standingCount: 0, scopedCount: 0 }
 
 import { POST } from './route'
 
@@ -47,6 +54,7 @@ describe('POST /api/answer', () => {
       context: { block: '', citations: [] },
       relaxed: false,
       itemCount: 0,
+      profile: PROFILE,
     })
 
     const res = await POST(req({ question: 'anything' }))
@@ -64,6 +72,7 @@ describe('POST /api/answer', () => {
       context: { block: '[1] content', citations },
       relaxed: true,
       itemCount: 1,
+      profile: { standingCount: 2, scopedCount: 1 },
     })
     m.synthesizeStream.mockReturnValue({
       toTextStreamResponse: ({ headers }: { headers: Record<string, string> }) =>
@@ -76,6 +85,8 @@ describe('POST /api/answer', () => {
     expect(await res.text()).toBe('the answer')
     expect(decodeMeta(res)).toMatchObject({ thin: false, relaxed: true, intent: 'daily_briefing' })
     expect((decodeMeta(res).citations as unknown[]).length).toBe(1)
+    // Founder-profile counts ride along in meta so the Ask UI can show what shaped ordering.
+    expect(decodeMeta(res).personalization).toEqual({ standing: 2, scoped: 1 })
   })
 
   it('rejects a blank question with 400', async () => {

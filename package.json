@@ -30,6 +30,7 @@
     "next-auth": "^4.24.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
+    "supermemory": "^4.24.12",
     "uuid": "^14.0.0",
     "ws": "^8.21.0",
     "zod": "^3.23.0"
@@ -40,8 +41,11 @@
     "@types/react-dom": "^18.3.0",
     "@types/uuid": "^11.0.0",
     "@types/ws": "^8.18.1",
+    "autoprefixer": "^10.4",
+    "postcss": "^8.4",
     "prettier": "^3.3.0",
     "supabase": "^2.106.0",
+    "tailwindcss": "^3.4",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"

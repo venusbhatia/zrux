@@ -9,6 +9,7 @@ import { retrieve } from '@/lib/retrieval/pipeline'
 import { isThin, synthesizeStream, REFUSAL } from '@/lib/retrieval/synthesize'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { flushTracing, tracingEnabled } from '@/lib/observability/langfuse'
+import { enqueueLearnPreferences } from '@/lib/personalization/enqueue'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -58,26 +59,24 @@ export async function POST(req: NextRequest): Promise<Response> {
 // closed in onDone, which then flushes (this Next version has no `after()`).
 function answer(userId: string, question: string): Promise<Response> {
   if (!tracingEnabled) return buildAnswer(userId, question)
-  return propagateAttributes(
-    { userId, traceName: 'answer', tags: ['answer-path'] },
-    () =>
-      startActiveObservation(
-        'answer',
-        async (trace) => {
-          trace.update({ input: question })
-          try {
-            return await buildAnswer(userId, question, async (output) => {
-              trace.update({ output }).end()
-              await flushTracing()
-            })
-          } catch (err) {
-            trace.update({ level: 'ERROR', statusMessage: String(err) }).end()
+  return propagateAttributes({ userId, traceName: 'answer', tags: ['answer-path'] }, () =>
+    startActiveObservation(
+      'answer',
+      async (trace) => {
+        trace.update({ input: question })
+        try {
+          return await buildAnswer(userId, question, async (output) => {
+            trace.update({ output }).end()
             await flushTracing()
-            throw err
-          }
-        },
-        { endOnExit: false },
-      ),
+          })
+        } catch (err) {
+          trace.update({ level: 'ERROR', statusMessage: String(err) }).end()
+          await flushTracing()
+          throw err
+        }
+      },
+      { endOnExit: false },
+    ),
   )
 }
 
@@ -89,21 +88,42 @@ async function buildAnswer(
   question: string,
   onDone?: (output: string) => void | Promise<void>,
 ): Promise<Response> {
-  const { plan, context, relaxed, itemCount } = await retrieve(userId, question)
+  const { plan, context, relaxed, itemCount, profile } = await retrieve(userId, question)
+  // How many durable preferences shaped this answer's ordering (for the Ask UI).
+  const personalization = {
+    standing: profile.standingCount,
+    scoped: profile.scopedCount,
+  }
 
-  // Refuse-when-thin: short-circuit without spending a synthesis call.
+  // Refuse-when-thin: short-circuit without spending a synthesis call. A non-empty
+  // profile never changes this: isThin is citation-only, so zero items still refuses.
   if (isThin(context)) {
     await onDone?.(REFUSAL)
     return new Response(REFUSAL, {
       status: 200,
       headers: {
         'content-type': 'text/plain; charset=utf-8',
-        ...metaHeaders({ thin: true, relaxed, itemCount, intent: plan.intent, citations: [] }),
+        ...metaHeaders({
+          thin: true,
+          relaxed,
+          itemCount,
+          intent: plan.intent,
+          citations: [],
+          personalization,
+        }),
       },
     })
   }
 
-  const result = synthesizeStream(question, context, { onFinish: onDone })
+  const result = synthesizeStream(question, context, {
+    onFinish: async (text) => {
+      await onDone?.(text)
+      // Out-of-band: learn durable preferences after the conversation. Fire-and-
+      // forget, guarded so it can never throw into the stream. Skipped on the thin/
+      // refusal path above (that branch returns before reaching here).
+      void enqueueLearnPreferences(userId, question, text)
+    },
+  })
   return result.toTextStreamResponse({
     headers: metaHeaders({
       thin: false,
@@ -111,6 +131,7 @@ async function buildAnswer(
       itemCount,
       intent: plan.intent,
       citations: context.citations,
+      personalization,
     }),
   })
 }

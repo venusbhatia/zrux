@@ -8,7 +8,9 @@ import { hybridSearch } from './search'
 import { rollupToItems } from './rollup'
 import { assembleContext } from './assemble'
 import { expandGraph } from './graph-expand'
-import type { AssembledContext, RetrievalPlan, RolledItem } from './types'
+import { getProfileBlock, EMPTY_PROFILE } from '../personalization/supermemory'
+import type { ProfileBlock } from '../personalization/supermemory'
+import type { AssembledContext, RetrievalPlan } from './types'
 
 export interface RetrievalResult {
   plan: RetrievalPlan
@@ -16,32 +18,36 @@ export interface RetrievalResult {
   relaxed: boolean
   itemCount: number
   graphFactCount: number
+  profile: ProfileBlock
 }
 
 export async function retrieve(userId: string, question: string): Promise<RetrievalResult> {
   const plan = await planQuery(question)
   const queryEmbedding = await embedText(plan.semantic_query || question)
-  // Stage 2 search and Stage 3 graph expansion are independent; run together.
-  const [{ hits, relaxed, diversify }, graph] = await Promise.all([
+  // Stage 2 search, Stage 3 graph expansion, and Stage 7 personalization are
+  // independent; run together. Graph and profile are both best-effort enrichers:
+  // they only reorder/emphasize and never fail the answer (same posture).
+  const [{ hits, relaxed, diversify }, graph, profile] = await Promise.all([
     hybridSearch(userId, plan, queryEmbedding),
     expandGraph(userId, plan.entities).catch((err) => {
       // Graph expansion only enriches; never fail the answer on it.
       console.error('[retrieval] graph expansion skipped:', (err as Error).message)
       return { facts: [], itemIds: [], entities: [] }
     }),
+    getProfileBlock(userId, plan).catch((err) => {
+      // Personalization is presentation only; degrade to an empty profile.
+      console.error('[retrieval] personalization skipped:', (err as Error).message)
+      return EMPTY_PROFILE
+    }),
   ])
   const items = await rollupToItems(userId, hits, { diversify })
-  const context = assembleContext(items, graph.facts)
-  return { plan, context, relaxed, itemCount: items.length, graphFactCount: graph.facts.length }
-}
-
-// Ranked items for the Search screen: the same retrieval stages 1, 2 and 5 as the
-// answer path (plan -> embed -> hybrid_search -> rollup) but WITHOUT graph
-// expansion, assembly, or LLM synthesis. Returns the rolled-up source items
-// directly so the UI can list hits without spending a synthesis call.
-export async function searchItems(userId: string, question: string): Promise<RolledItem[]> {
-  const plan = await planQuery(question)
-  const queryEmbedding = await embedText(plan.semantic_query || question)
-  const { hits, diversify } = await hybridSearch(userId, plan, queryEmbedding)
-  return rollupToItems(userId, hits, { diversify })
+  const context = assembleContext(items, graph.facts, profile)
+  return {
+    plan,
+    context,
+    relaxed,
+    itemCount: items.length,
+    graphFactCount: graph.facts.length,
+    profile,
+  }
 }

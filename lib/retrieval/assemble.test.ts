@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { assembleContext } from './assemble'
+import { isThin } from './synthesize'
 import type { RolledItem } from './types'
 
 function item(overrides: Partial<RolledItem> = {}): RolledItem {
@@ -41,5 +42,45 @@ describe('assembleContext', () => {
     const ctx = assembleContext([])
     expect(ctx.block).toBe('')
     expect(ctx.citations).toHaveLength(0)
+  })
+
+  it('renders the profile before relationships and context, and adds no citations', () => {
+    const profile = {
+      block:
+        'FOUNDER PROFILE (durable preferences; shape ordering/emphasis only, never add facts):\n- Triage investor threads before anything else.',
+      memoryIds: ['m1'],
+      standingCount: 1,
+      scopedCount: 0,
+    }
+    const ctx = assembleContext([item()], [], profile)
+    const profileIdx = ctx.block.indexOf('FOUNDER PROFILE')
+    const itemIdx = ctx.block.indexOf('[1]')
+    expect(profileIdx).toBeGreaterThanOrEqual(0)
+    expect(profileIdx).toBeLessThan(itemIdx)
+    // Presentation only: never contributes a citation.
+    expect(ctx.citations).toHaveLength(1)
+    expect(ctx.citations[0]).toMatchObject({ n: 1 })
+  })
+
+  it('leaves output byte-identical when the profile is empty', () => {
+    const empty = { block: '', memoryIds: [], standingCount: 0, scopedCount: 0 }
+    const withEmpty = assembleContext([item()], [], empty)
+    const without = assembleContext([item()])
+    expect(withEmpty.block).toBe(without.block)
+    expect(withEmpty.citations).toEqual(without.citations)
+  })
+
+  it('does not turn a thin (zero-item) context into an answer despite a profile', () => {
+    const profile = {
+      block:
+        'FOUNDER PROFILE (durable preferences; shape ordering/emphasis only, never add facts):\n- Triage investors first.',
+      memoryIds: ['m1'],
+      standingCount: 1,
+      scopedCount: 0,
+    }
+    const ctx = assembleContext([], [], profile)
+    // isThin is citation-only: zero items => zero citations => still thin.
+    expect(ctx.citations).toHaveLength(0)
+    expect(isThin(ctx)).toBe(true)
   })
 })

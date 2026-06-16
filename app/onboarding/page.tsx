@@ -1,164 +1,171 @@
 'use client'
 
+// Onboarding: connect sources via Composio OAuth, then watch indexing progress
+// from /api/connections and unlock the app once the first items land. The connect
+// kickoff and OAuth callback (which enqueues the 90-day load) already exist; this
+// is the guided surface over them.
+
 import { Suspense, useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Icon } from '@/components/icons'
+import { sourceMeta } from '@/lib/ui/source'
 
-type SourceStatus = 'not_connected' | 'initiated' | 'active' | 'error'
+const CONNECTABLE = ['gmail', 'calendar', 'linear', 'slack', 'notion']
 
-interface SourceRow {
+interface Connection {
   source: string
-  status: SourceStatus
+  status: string
+  itemCount: number
 }
 
-const STATUS_LABEL: Record<SourceStatus, string> = {
-  not_connected: 'Not connected',
-  initiated: 'Connecting...',
-  active: 'Connected',
-  error: 'Error',
+function statusLabel(c: Connection | undefined): string {
+  if (!c) return 'Not connected'
+  if (c.status === 'error') return 'Connection failed'
+  if (c.status === 'initiated') return 'Connecting...'
+  if (c.itemCount > 0) return `Ready · ${c.itemCount} items`
+  return 'Indexing...'
 }
 
-const STATUS_COLOR: Record<SourceStatus, string> = {
-  not_connected: 'var(--muted)',
-  initiated: '#b8860b',
-  active: '#1a7f37',
-  error: '#b00020',
-}
-
-// OAuth init URLs are provider-supplied. Only ever navigate to an absolute
-// https URL so a reflected or misconfigured value cannot become a
-// javascript:/data:/relative open redirect.
-function isSafeRedirectUrl(url: string): boolean {
-  try {
-    return new URL(url).protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function Banner() {
+function OnboardingInner() {
+  const router = useRouter()
   const params = useSearchParams()
-  if (params.get('connected') === '1') {
-    return (
-      <div style={{ background: '#e6f4ea', color: '#1a7f37', borderRadius: 12, padding: 14, marginBottom: 20, fontSize: 14 }}>
-        Connected. Importing your data now - it will appear under Today and Search shortly.
-      </div>
-    )
-  }
-  if (params.get('error') === '1') {
-    return (
-      <div style={{ background: '#fdecea', color: '#b00020', borderRadius: 12, padding: 14, marginBottom: 20, fontSize: 14 }}>
-        Something went wrong finalizing the connection. Try again.
-      </div>
-    )
-  }
-  return null
-}
-
-export default function OnboardingPage() {
-  const [sources, setSources] = useState<SourceRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [connections, setConnections] = useState<Connection[]>([])
   const [connecting, setConnecting] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
-    let active = true
-    ;(async () => {
+    if (params.get('connected')) setNotice('Source connected. Indexing has started.')
+    if (params.get('error')) setNotice('That connection did not complete. Try again.')
+  }, [params])
+
+  useEffect(() => {
+    let alive = true
+    let id: ReturnType<typeof setInterval> | undefined
+    async function poll() {
       try {
-        const res = await fetch('/api/sources')
-        if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
-        const data = (await res.json()) as { sources: SourceRow[] }
-        if (active) setSources(data.sources)
-      } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : 'Failed to load sources')
-      } finally {
-        if (active) setLoading(false)
+        const res = await fetch('/api/connections')
+        if (!res.ok) return
+        const json = (await res.json()) as { connections: Connection[] }
+        if (!alive) return
+        setConnections(json.connections)
+        // First items have landed: the unlock is available, so stop the fast
+        // 3s poll. Status keeps refreshing on the user's next navigation.
+        if (json.connections.some((c) => c.itemCount > 0) && id) {
+          clearInterval(id)
+          id = undefined
+        }
+      } catch {
+        // transient; keep last state
       }
-    })()
+    }
+    void poll()
+    id = setInterval(poll, 3000)
     return () => {
-      active = false
+      alive = false
+      if (id) clearInterval(id)
     }
   }, [])
 
+  const bySource = new Map(connections.map((c) => [c.source, c]))
+  const hasData = connections.some((c) => c.itemCount > 0)
+
   async function connect(source: string) {
     setConnecting(source)
-    setError(null)
     try {
       const res = await fetch(`/api/connect/${source}`, { method: 'POST' })
-      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
-      const data = (await res.json()) as { redirectUrl?: string }
-      if (!data.redirectUrl) throw new Error('No redirect URL returned')
-      if (!isSafeRedirectUrl(data.redirectUrl)) throw new Error('Unexpected redirect URL')
-      window.location.href = data.redirectUrl
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start connection')
-      setConnecting(null)
+      if (!res.ok) {
+        setNotice('Could not start that connection. Try again.')
+        setConnecting(null)
+        return
+      }
+      const { redirectUrl } = (await res.json()) as { redirectUrl?: string }
+      if (redirectUrl) {
+        window.location.href = redirectUrl
+        return
+      }
+      setNotice('No redirect returned by the connector.')
+    } catch {
+      setNotice('Could not start that connection. Try again.')
     }
+    setConnecting(null)
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px' }}>
-      <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8 }}>Connect your sources</h1>
-      <p style={{ color: 'var(--muted)', marginBottom: 24 }}>
-        zrux reads from these tools in the background. Connect one to start ingestion.
+    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-16">
+      <div className="mb-2 grid h-11 w-11 place-items-center rounded-[12px] bg-accent text-lg font-bold text-white">
+        z
+      </div>
+      <h1 className="text-3xl font-semibold tracking-[-.02em]">Connect your tools</h1>
+      <p className="mt-2 text-[15px] text-muted">
+        zrux reads your tools with access you grant and can revoke anytime. Connect at least one to
+        get your first brief.
       </p>
 
-      <Suspense fallback={null}>
-        <Banner />
-      </Suspense>
-
-      {error && (
-        <div style={{ color: '#b00020', marginBottom: 16, fontSize: 14 }}>Error - {error}</div>
+      {notice && (
+        <div className="mt-4 rounded-xl border border-hairline bg-white px-4 py-3 text-sm text-ink shadow-flat">
+          {notice}
+        </div>
       )}
 
-      {loading ? (
-        <div style={{ color: 'var(--muted)' }}>Loading sources...</div>
-      ) : (
-        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {sources.map((s) => (
-            <li
-              key={s.source}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: '#fff',
-                border: '1px solid #e5e5ea',
-                borderRadius: 12,
-                padding: '14px 18px',
-              }}
+      <div className="mt-6 flex flex-col gap-2.5">
+        {CONNECTABLE.map((source) => {
+          const meta = sourceMeta(source)
+          const c = bySource.get(source)
+          const connected = Boolean(c)
+          return (
+            <div
+              key={source}
+              className="flex items-center gap-3 rounded-card border border-hairline bg-white px-4 py-3.5 shadow-flat"
             >
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 500, textTransform: 'capitalize' }}>
-                  {s.source}
-                </div>
-                <div style={{ fontSize: 13, color: STATUS_COLOR[s.status] }}>
-                  {STATUS_LABEL[s.status]}
-                </div>
+              <div
+                className="grid h-9 w-9 flex-none place-items-center rounded-[10px]"
+                style={{ background: meta.tint.bg, color: meta.tint.color }}
+              >
+                <Icon name={meta.icon} size={16} />
               </div>
-              {s.status === 'active' ? (
-                <span style={{ color: '#1a7f37', fontSize: 14 }}>✓</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-semibold">{meta.label}</div>
+                <div className="text-[13px] text-muted">{statusLabel(c)}</div>
+              </div>
+              {connected ? (
+                <span className="text-[13px] font-medium text-success">
+                  {c && c.itemCount > 0 ? 'Ready' : 'Working'}
+                </span>
               ) : (
                 <button
-                  onClick={() => void connect(s.source)}
-                  disabled={connecting === s.source}
-                  style={{
-                    background: 'var(--accent)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 10,
-                    padding: '8px 16px',
-                    fontSize: 14,
-                    cursor: connecting === s.source ? 'default' : 'pointer',
-                    opacity: connecting === s.source ? 0.6 : 1,
-                  }}
+                  onClick={() => connect(source)}
+                  disabled={connecting === source}
+                  className="rounded-pill bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-press disabled:opacity-50"
                 >
-                  {connecting === s.source ? 'Starting...' : s.status === 'initiated' ? 'Retry' : 'Connect'}
+                  {connecting === source ? 'Opening...' : 'Connect'}
                 </button>
               )}
-            </li>
-          ))}
-        </ul>
-      )}
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="mt-8 flex items-center gap-3">
+        <button
+          onClick={() => router.push('/today')}
+          disabled={!hasData}
+          className="rounded-pill bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-accent-press disabled:opacity-50"
+        >
+          {hasData ? 'Open zrux' : 'Waiting for first items...'}
+        </button>
+        <Link href="/today" className="text-sm text-muted hover:text-ink">
+          Skip for now
+        </Link>
+      </div>
     </main>
+  )
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={null}>
+      <OnboardingInner />
+    </Suspense>
   )
 }
