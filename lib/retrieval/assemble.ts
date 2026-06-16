@@ -4,6 +4,7 @@
 
 import type { AssembledContext, Citation, RolledItem } from './types'
 import type { GraphFact } from './graph-expand'
+import type { ProfileBlock } from '../personalization/supermemory'
 
 function humanDate(iso: string): string {
   // YYYY-MM-DD is enough for "[Source, date]" citations and is locale-stable.
@@ -13,9 +14,16 @@ function humanDate(iso: string): string {
 export function assembleContext(
   items: RolledItem[],
   graphFacts: GraphFact[] = [],
+  profile?: ProfileBlock,
 ): AssembledContext {
   const citations: Citation[] = []
   const parts: string[] = []
+
+  // Layer 3 personalization first: durable founder preferences that shape ordering
+  // and emphasis only. It is presentation, never retrieval: it adds NO citations and
+  // does not affect isThin (citation-only), so a non-empty profile can never turn a
+  // thin context into an answer. Empty profile => output is byte-identical to before.
+  if (profile && profile.block.trim().length > 0) parts.push(profile.block)
 
   // Layer 2 relationships first: a compact, deduped fact list the model can use
   // for connection questions ("who introduced X", "follow-ups with Y"). This is

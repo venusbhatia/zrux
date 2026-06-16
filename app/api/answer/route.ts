@@ -58,26 +58,24 @@ export async function POST(req: NextRequest): Promise<Response> {
 // closed in onDone, which then flushes (this Next version has no `after()`).
 function answer(userId: string, question: string): Promise<Response> {
   if (!tracingEnabled) return buildAnswer(userId, question)
-  return propagateAttributes(
-    { userId, traceName: 'answer', tags: ['answer-path'] },
-    () =>
-      startActiveObservation(
-        'answer',
-        async (trace) => {
-          trace.update({ input: question })
-          try {
-            return await buildAnswer(userId, question, async (output) => {
-              trace.update({ output }).end()
-              await flushTracing()
-            })
-          } catch (err) {
-            trace.update({ level: 'ERROR', statusMessage: String(err) }).end()
+  return propagateAttributes({ userId, traceName: 'answer', tags: ['answer-path'] }, () =>
+    startActiveObservation(
+      'answer',
+      async (trace) => {
+        trace.update({ input: question })
+        try {
+          return await buildAnswer(userId, question, async (output) => {
+            trace.update({ output }).end()
             await flushTracing()
-            throw err
-          }
-        },
-        { endOnExit: false },
-      ),
+          })
+        } catch (err) {
+          trace.update({ level: 'ERROR', statusMessage: String(err) }).end()
+          await flushTracing()
+          throw err
+        }
+      },
+      { endOnExit: false },
+    ),
   )
 }
 
@@ -89,16 +87,29 @@ async function buildAnswer(
   question: string,
   onDone?: (output: string) => void | Promise<void>,
 ): Promise<Response> {
-  const { plan, context, relaxed, itemCount } = await retrieve(userId, question)
+  const { plan, context, relaxed, itemCount, profile } = await retrieve(userId, question)
+  // How many durable preferences shaped this answer's ordering (for the Ask UI).
+  const personalization = {
+    standing: profile.standingCount,
+    scoped: profile.scopedCount,
+  }
 
-  // Refuse-when-thin: short-circuit without spending a synthesis call.
+  // Refuse-when-thin: short-circuit without spending a synthesis call. A non-empty
+  // profile never changes this: isThin is citation-only, so zero items still refuses.
   if (isThin(context)) {
     await onDone?.(REFUSAL)
     return new Response(REFUSAL, {
       status: 200,
       headers: {
         'content-type': 'text/plain; charset=utf-8',
-        ...metaHeaders({ thin: true, relaxed, itemCount, intent: plan.intent, citations: [] }),
+        ...metaHeaders({
+          thin: true,
+          relaxed,
+          itemCount,
+          intent: plan.intent,
+          citations: [],
+          personalization,
+        }),
       },
     })
   }
@@ -111,6 +122,7 @@ async function buildAnswer(
       itemCount,
       intent: plan.intent,
       citations: context.citations,
+      personalization,
     }),
   })
 }
