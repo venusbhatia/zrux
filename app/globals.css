@@ -1,3 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Legacy CSS vars: kept until every inline-styled surface is migrated to Tailwind
+   tokens. Mirror the tailwind.config palette so old and new styling agree. */
 :root {
   --accent: #0071e3;
   --bg: #f5f5f7;
@@ -5,16 +11,59 @@
   --muted: #6e6e73;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+html {
+  scroll-behavior: smooth;
 }
 
 html,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Apple-style selection tint, matches the mockups. */
+::selection {
+  background: rgba(0, 113, 227, 0.18);
+}
+
+/* Thin scrollbar used on the app shell scroll regions and the graph detail panel. */
+.zx-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.zx-scroll::-webkit-scrollbar-thumb {
+  background: #d2d2d7;
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.zx-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes zxFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.zx-fade {
+  animation: zxFade 0.25s cubic-bezier(0.16, 0.84, 0.44, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zx-fade {
+    animation: none;
+  }
 }

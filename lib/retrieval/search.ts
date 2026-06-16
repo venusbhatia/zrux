@@ -32,10 +32,34 @@ async function userSources(userId: string): Promise<string[]> {
   const db = createServiceClient()
   // DISTINCT in Postgres (see 0005_distinct_sources.sql): a client-side dedupe of
   // every context_item row is silently capped by PostgREST max-rows (default
-  // 1000), which could drop an entire source from stratified retrieval.
+  // 1000), which could drop an entire source from stratified retrieval. Prefer
+  // the RPC; fall back to a client-side dedupe if the function is not present in
+  // this database (migration 0005 not applied) so broad-intent retrieval still
+  // works instead of failing the whole answer.
   const { data, error } = await db.rpc('distinct_sources', { p_user_id: userId })
-  if (error) throw new Error(`userSources failed: ${error.message}`)
+  if (error) {
+    console.warn(
+      `[retrieval] distinct_sources RPC unavailable (${error.message}); ` +
+        'falling back to client-side dedupe. Apply migration 0005 for the indexed path.',
+    )
+    return clientSideSources(userId)
+  }
   return (data ?? []).map((r) => r.source)
+}
+
+// Fallback for userSources: dedupe sources client-side. Bounded by ORDER BY +
+// the small number of distinct sources we expect per tenant; the explicit cap
+// keeps us clear of the PostgREST max-rows ceiling for the common case.
+async function clientSideSources(userId: string): Promise<string[]> {
+  const db = createServiceClient()
+  const { data, error } = await db
+    .from('context_item')
+    .select('source')
+    .eq('user_id', userId)
+    .eq('is_deleted', false)
+    .limit(10000)
+  if (error) throw new Error(`userSources fallback failed: ${error.message}`)
+  return [...new Set((data ?? []).map((r) => r.source))]
 }
 
 // Merge per-source hit lists, deduping by chunk id and keeping the best score.

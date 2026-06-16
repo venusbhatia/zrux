@@ -43,3 +43,7 @@ Assignment.pdf
 
 # Claude Code local worktrees/jobs
 .claude/
+
+# local verification artifacts
+.playwright-mcp/
+*.png
