@@ -12,10 +12,12 @@ import { normalizeItem } from './normalize'
 import { chunkText } from './chunk'
 import { enrichChunk } from './enrich'
 import { setSyncState } from '../db/sync-state'
+import { withRetry } from '../llm/gateway'
 
 export interface IngestStats {
   items: number
   chunks: number
+  failures: number
 }
 
 async function ingestOne(userId: string, raw: RawItem): Promise<number> {
@@ -23,12 +25,15 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
 
   // 1. Persist normalized item (raw payload kept as episodic ground truth).
   const insert = normalizeItem(userId, raw)
-  const { data: item, error: itemErr } = await db
-    .from('context_item')
-    .upsert(insert, { onConflict: 'user_id,source,external_id' })
-    .select('id')
-    .single()
-  if (itemErr) throw new Error(`item upsert ${raw.source}/${raw.externalId}: ${itemErr.message}`)
+  const item = await withRetry(async () => {
+    const { data, error } = await db
+      .from('context_item')
+      .upsert(insert, { onConflict: 'user_id,source,external_id' })
+      .select('id')
+      .single()
+    if (error) throw new Error(`item upsert ${raw.source}/${raw.externalId}: ${error.message}`)
+    return data
+  })
 
   // 2. Chunk + enrich.
   const dateIso = raw.sourceUpdatedAt.toISOString()
@@ -36,11 +41,14 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
   if (pieces.length === 0) return 0
   const contents = await Promise.all(pieces.map((p) => enrichChunk(raw, p, dateIso)))
 
-  // 3. Embed all chunks for this item in one batch.
-  const embeddings = await embedTexts(contents)
+  // 3. Embed all chunks for this item in one batch (retried on transient error).
+  const embeddings = await withRetry(() => embedTexts(contents))
 
-  // 4. Replace chunks for this item (idempotent reseed).
-  await db.from('context_chunk').delete().eq('user_id', userId).eq('item_id', item.id)
+  // 4. Replace chunks for this item (idempotent reseed), retried on network blips.
+  await withRetry(async () => {
+    const { error } = await db.from('context_chunk').delete().eq('user_id', userId).eq('item_id', item.id)
+    if (error) throw new Error(`chunk delete ${raw.source}/${raw.externalId}: ${error.message}`)
+  })
   const rows = contents.map((content, i) => ({
     user_id: userId,
     item_id: item.id,
@@ -50,8 +58,10 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
     content,
     embedding: toVectorLiteral(embeddings[i]!),
   }))
-  const { error: chunkErr } = await db.from('context_chunk').insert(rows)
-  if (chunkErr) throw new Error(`chunk insert ${raw.source}/${raw.externalId}: ${chunkErr.message}`)
+  await withRetry(async () => {
+    const { error } = await db.from('context_chunk').insert(rows)
+    if (error) throw new Error(`chunk insert ${raw.source}/${raw.externalId}: ${error.message}`)
+  })
 
   return rows.length
 }
@@ -64,10 +74,17 @@ export async function ingestItems(
 ): Promise<IngestStats> {
   let itemCount = 0
   let chunkCount = 0
+  let failures = 0
 
   for await (const raw of items) {
-    chunkCount += await ingestOne(userId, raw)
-    itemCount++
+    // Per-item isolation: one bad item must not abort a 90-day load.
+    try {
+      chunkCount += await ingestOne(userId, raw)
+      itemCount++
+    } catch (err) {
+      failures++
+      console.error(`[ingest] skipped ${raw.source}/${raw.externalId}:`, (err as Error).message)
+    }
     if (opts.maxItems && itemCount >= opts.maxItems) break
   }
 
@@ -78,5 +95,5 @@ export async function ingestItems(
     })
   }
 
-  return { items: itemCount, chunks: chunkCount }
+  return { items: itemCount, chunks: chunkCount, failures }
 }
