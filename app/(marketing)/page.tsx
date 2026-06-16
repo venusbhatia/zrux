@@ -4,8 +4,7 @@
 
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth/options'
+import { createServerSupabase } from '@/lib/auth/supabase-server'
 import { LandingMotion } from '@/components/marketing/LandingMotion'
 
 const MailIcon = (
@@ -16,7 +15,13 @@ const MailIcon = (
 )
 const CheckIcon = (
   <svg viewBox="0 0 24 24" fill="none">
-    <path d="M5 12l5 5 9-11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path
+      d="M5 12l5 5 9-11"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 )
 const ChatIcon = (
@@ -42,7 +47,13 @@ const NotionIcon = (
 )
 const GithubIcon = (
   <svg viewBox="0 0 24 24" fill="none">
-    <path d="M9 18l-5-6 5-6M15 6l5 6-5 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path
+      d="M9 18l-5-6 5-6M15 6l5 6-5 6"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 )
 const VoiceIcon = (
@@ -57,13 +68,22 @@ const VoiceIcon = (
 )
 const Chevron = (
   <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
-    <path d="M1.5 1l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <path
+      d="M1.5 1l6 6-6 6"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 )
 
 export default async function LandingPage() {
-  const session = await getServerSession(authOptions)
-  if (session?.user?.id) redirect('/today')
+  const supabase = createServerSupabase()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (user) redirect('/today')
 
   return (
     <div className="lp" id="top">
@@ -167,11 +187,46 @@ export default async function LandingPage() {
             </div>
             <div className="stage-canvas">
               {[
-                { icon: MailIcon, label: 'Email', text: 'Term sheet from Aria Capital. They asked for the cap table.', x: -32, y: -12, r: -7 },
-                { icon: CheckIcon, label: 'Linear', text: 'ENG-412 marked as blocking the launch by Raj.', x: 30, y: -16, r: 6 },
-                { icon: ChatIcon, label: 'Slack', text: 'Customer in #support hit the export bug again.', x: -34, y: 18, r: 5 },
-                { icon: CalendarIcon, label: 'Calendar', text: 'Board meeting Thursday. Deck not sent yet.', x: 33, y: 16, r: -6 },
-                { icon: VoiceIcon, label: 'Voice memo', text: 'Follow up with the design contractor on onboarding.', x: 0, y: -26, r: -3 },
+                {
+                  icon: MailIcon,
+                  label: 'Email',
+                  text: 'Term sheet from Aria Capital. They asked for the cap table.',
+                  x: -32,
+                  y: -12,
+                  r: -7,
+                },
+                {
+                  icon: CheckIcon,
+                  label: 'Linear',
+                  text: 'ENG-412 marked as blocking the launch by Raj.',
+                  x: 30,
+                  y: -16,
+                  r: 6,
+                },
+                {
+                  icon: ChatIcon,
+                  label: 'Slack',
+                  text: 'Customer in #support hit the export bug again.',
+                  x: -34,
+                  y: 18,
+                  r: 5,
+                },
+                {
+                  icon: CalendarIcon,
+                  label: 'Calendar',
+                  text: 'Board meeting Thursday. Deck not sent yet.',
+                  x: 33,
+                  y: 16,
+                  r: -6,
+                },
+                {
+                  icon: VoiceIcon,
+                  label: 'Voice memo',
+                  text: 'Follow up with the design contractor on onboarding.',
+                  x: 0,
+                  y: -26,
+                  r: -3,
+                },
               ].map((f) => (
                 <article className="frag" key={f.label} data-x={f.x} data-y={f.y} data-r={f.r}>
                   <div className="fh">
@@ -183,32 +238,34 @@ export default async function LandingPage() {
               ))}
               <div className="brief-float" id="briefFloat">
                 <div className="brief-card">
-              <div className="brief-top">
-                <span className="brief-title">Today</span>
-                <span className="brief-date">Monday morning</span>
-              </div>
-              <p className="brief-kicker">Read overnight. Ranked for you.</p>
-              <div className="brief-item">
-                <span className="dot">{MailIcon}</span>
-                <div className="bi-body">
-                  <div className="bi-text">Reply to Aria Capital with the cap table.</div>
-                  <span className="tag">Investor</span>
-                </div>
-              </div>
-              <div className="brief-item">
-                <span className="dot">{CheckIcon}</span>
-                <div className="bi-body">
-                  <div className="bi-text">Unblock ENG-412 before the launch slips.</div>
-                  <span className="tag warn">Blocker</span>
-                </div>
-              </div>
-              <div className="brief-item">
-                <span className="dot">{ChatIcon}</span>
-                <div className="bi-body">
-                  <div className="bi-text">The export bug is now three customers. Worth a look.</div>
-                  <span className="tag">Signal</span>
-                </div>
-              </div>
+                  <div className="brief-top">
+                    <span className="brief-title">Today</span>
+                    <span className="brief-date">Monday morning</span>
+                  </div>
+                  <p className="brief-kicker">Read overnight. Ranked for you.</p>
+                  <div className="brief-item">
+                    <span className="dot">{MailIcon}</span>
+                    <div className="bi-body">
+                      <div className="bi-text">Reply to Aria Capital with the cap table.</div>
+                      <span className="tag">Investor</span>
+                    </div>
+                  </div>
+                  <div className="brief-item">
+                    <span className="dot">{CheckIcon}</span>
+                    <div className="bi-body">
+                      <div className="bi-text">Unblock ENG-412 before the launch slips.</div>
+                      <span className="tag warn">Blocker</span>
+                    </div>
+                  </div>
+                  <div className="brief-item">
+                    <span className="dot">{ChatIcon}</span>
+                    <div className="bi-body">
+                      <div className="bi-text">
+                        The export bug is now three customers. Worth a look.
+                      </div>
+                      <span className="tag">Signal</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -244,8 +301,8 @@ export default async function LandingPage() {
             <p className="eyebrow reveal">Grounded answers</p>
             <h2 className="reveal d1">Ask anything. Get the real answer.</h2>
             <p className="sub reveal d2">
-              Every answer comes from your own context and points back to where it came from. If zrux
-              is not sure, it says so instead of guessing.
+              Every answer comes from your own context and points back to where it came from. If
+              zrux is not sure, it says so instead of guessing.
             </p>
           </div>
           <div className="tile-visual reveal d2">
@@ -326,8 +383,8 @@ export default async function LandingPage() {
             <div className="cell reveal d1">
               <h3>Say it, and it is in.</h3>
               <p className="sub">
-                Talk through a thought between meetings. zrux captures it, cleans it up, and files it
-                with everything else.
+                Talk through a thought between meetings. zrux captures it, cleans it up, and files
+                it with everything else.
               </p>
               <div className="cell-visual">
                 <div className="wave" aria-hidden="true">

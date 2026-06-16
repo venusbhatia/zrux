@@ -6,9 +6,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { signOut } from 'next-auth/react'
+import { usePathname, useRouter } from 'next/navigation'
 import { Icon, type IconName } from '@/components/icons'
+import { createBrowserSupabase } from '@/lib/auth/supabase-browser'
 import { SourceDots } from './SourceDots'
 
 interface NavDef {
@@ -35,7 +35,14 @@ export function Sidebar({
   initials: string
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [todayCount, setTodayCount] = useState<number>(0)
+
+  async function handleSignOut() {
+    await createBrowserSupabase().auth.signOut()
+    router.push('/')
+    router.refresh()
+  }
 
   // The Today badge reflects the number of briefing cards. The Today page writes
   // the count to sessionStorage + dispatches an event after it loads, so the
@@ -102,7 +109,7 @@ export function Sidebar({
           {companyName && <span className="truncate text-[11px] text-muted">{companyName}</span>}
         </div>
         <button
-          onClick={() => signOut({ callbackUrl: '/' })}
+          onClick={handleSignOut}
           className="ml-auto text-[11px] text-hint hover:text-ink"
           title="Sign out"
         >
