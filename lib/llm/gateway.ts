@@ -22,10 +22,20 @@ function requireEnv(name: string): string {
   return v
 }
 
-const openrouter = createOpenAI({
-  baseURL: process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1',
-  apiKey: requireEnv('OPENROUTER_API_KEY'),
-})
+// Lazily constructed so importing this module never reads the env. Task files
+// are imported by Trigger.dev's indexer in an env-less build container; a
+// module-load requireEnv() would abort indexing and fail the deploy. The key is
+// still required at first use (runtime), so behavior is unchanged.
+let openrouter: ReturnType<typeof createOpenAI> | null = null
+function openrouterClient(): ReturnType<typeof createOpenAI> {
+  if (!openrouter) {
+    openrouter = createOpenAI({
+      baseURL: process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1',
+      apiKey: requireEnv('OPENROUTER_API_KEY'),
+    })
+  }
+  return openrouter
+}
 
 export const PRIMARY_MODEL = process.env.OPENROUTER_PRIMARY_MODEL ?? 'anthropic/claude-sonnet-4-6'
 export const FALLBACK_MODEL = process.env.OPENROUTER_FALLBACK_MODEL ?? 'anthropic/claude-haiku-4-5'
@@ -33,7 +43,7 @@ export const FALLBACK_MODEL = process.env.OPENROUTER_FALLBACK_MODEL ?? 'anthropi
 // Read-only chat model. The answer-time model holds zero side-effecting tools;
 // that is the primary injection defense (CLAUDE.md "Security and injection").
 export function chatModel(modelId: string = PRIMARY_MODEL): LanguageModelV1 {
-  return openrouter(modelId)
+  return openrouterClient()(modelId)
 }
 
 // Thrown when the breaker is OPEN and a call is rejected without hitting the LLM.

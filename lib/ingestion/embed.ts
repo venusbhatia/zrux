@@ -12,13 +12,21 @@ function requireEnv(name: string): string {
   return v
 }
 
-const openai = createOpenAI({ apiKey: requireEnv('OPENAI_API_KEY') })
+// Lazily constructed so importing this module never reads the env. Trigger.dev's
+// indexer imports task files (and this, via the ingest pipeline) in an env-less
+// build container; a module-load requireEnv() would fail the deploy. The key is
+// still required at first use (runtime), so behavior is unchanged.
+let openai: ReturnType<typeof createOpenAI> | null = null
+function openaiClient(): ReturnType<typeof createOpenAI> {
+  if (!openai) openai = createOpenAI({ apiKey: requireEnv('OPENAI_API_KEY') })
+  return openai
+}
 
 export const EMBED_MODEL = 'text-embedding-3-large'
 export const EMBED_DIMS = 1536
 
 function embeddingModel() {
-  return openai.embedding(EMBED_MODEL, { dimensions: EMBED_DIMS })
+  return openaiClient().embedding(EMBED_MODEL, { dimensions: EMBED_DIMS })
 }
 
 export async function embedText(text: string): Promise<number[]> {
