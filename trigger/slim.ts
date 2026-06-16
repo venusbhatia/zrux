@@ -33,7 +33,12 @@ export const slimSchedule = schedules.task({
       try {
         const liveIds = new Set<string>()
         for await (const id of connector.slim(ctx)) liveIds.add(id)
-        const result = await reconcileDeletions(conn.user_id, source, liveIds)
+        // Scope reconciliation to the same window the connector's slim walked, so
+        // a bounded (windowed) walk can't falsely delete older-but-live items.
+        const since = connector.slimWindowed
+          ? new Date(Date.now() - lookbackDays * 86400_000)
+          : undefined
+        const result = await reconcileDeletions(conn.user_id, source, liveIds, { since })
         results.push({ userId: conn.user_id, source, ...result })
         if (result.deleted > 0 || result.skipped) {
           console.warn(`[slim] ${source} user=${conn.user_id}:`, JSON.stringify(result))

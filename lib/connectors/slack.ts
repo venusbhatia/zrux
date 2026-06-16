@@ -147,11 +147,16 @@ export const slackConnector: Connector = {
     yield* fetchAll(ctx.userId, since)
   },
 
+  // Slack has no cheap id-only listing: slim must walk conversation history, so an
+  // unbounded "from the beginning of time" walk would blow the Trigger.dev task
+  // budget on an active workspace. Bound it to the same lookback window as
+  // load/poll. Safe against false deletions because slimWindowed=true scopes
+  // reconcileDeletions to this same window (items older than it are not reconciled).
+  slimWindowed: true,
+
   async *slim(ctx: SyncContext): AsyncIterable<ExternalId> {
-    // Deletion detection must list the full id set, NOT a lookback window:
-    // reconcileDeletions diffs against ALL stored ids, so a windowed walk would
-    // flag older-but-still-live messages as deleted. Mirrors Notion's slim.
-    for await (const item of fetchAll(ctx.userId)) yield item.externalId
+    const oldest = new Date(Date.now() - ctx.lookbackDays * 86400_000)
+    for await (const item of fetchAll(ctx.userId, oldest)) yield item.externalId
   },
 
   // Event-mode: a single Slack message event from the Event API webhook. The
