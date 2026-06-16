@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mocks = vi.hoisted(() => {
   class UnauthorizedError extends Error {}
   class OwnershipError extends Error {}
+  class StillProcessingError extends Error {}
   return {
     getUserId: vi.fn(),
     rememberPreference: vi.fn(),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => {
     forgetPreference: vi.fn(),
     UnauthorizedError,
     OwnershipError,
+    StillProcessingError,
   }
 })
 vi.mock('@/lib/auth/session', () => ({
@@ -23,9 +25,10 @@ vi.mock('@/lib/personalization/supermemory', () => ({
   listStandingPreferences: mocks.listStandingPreferences,
   forgetPreference: mocks.forgetPreference,
   OwnershipError: mocks.OwnershipError,
+  StillProcessingError: mocks.StillProcessingError,
 }))
 
-const { UnauthorizedError, OwnershipError } = mocks
+const { UnauthorizedError, OwnershipError, StillProcessingError } = mocks
 
 import { POST, GET } from './route'
 import { DELETE } from './[memoryId]/route'
@@ -88,5 +91,11 @@ describe('DELETE /api/remember/:memoryId', () => {
       params: Promise.resolve({ memoryId: 'someone-elses' }),
     })
     expect(res.status).toBe(404)
+  })
+
+  it('returns 409 (retry) when the memory is still processing', async () => {
+    mocks.forgetPreference.mockRejectedValue(new StillProcessingError('proc'))
+    const res = await DELETE(jsonReq({}), { params: Promise.resolve({ memoryId: 'just-added' }) })
+    expect(res.status).toBe(409)
   })
 })

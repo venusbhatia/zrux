@@ -5,7 +5,11 @@
 
 import type { NextRequest } from 'next/server'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
-import { forgetPreference, OwnershipError } from '@/lib/personalization/supermemory'
+import {
+  forgetPreference,
+  OwnershipError,
+  StillProcessingError,
+} from '@/lib/personalization/supermemory'
 
 export const runtime = 'nodejs'
 
@@ -31,6 +35,13 @@ export async function DELETE(
     if (err instanceof OwnershipError) {
       // Do not reveal whether the id exists for another tenant; 404 either way.
       return new Response('Not found', { status: 404 })
+    }
+    if (err instanceof StillProcessingError) {
+      // Transient: the preference was just added and is still being indexed. Tell the
+      // client to retry shortly rather than failing hard.
+      return new Response('Preference is still being saved; try again in a moment', {
+        status: 409,
+      })
     }
     console.error(`[remember] delete failed user=${userId} memory=${memoryId}:`, err)
     return new Response('Could not forget preference', { status: 502 })

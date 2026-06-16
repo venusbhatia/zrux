@@ -65,6 +65,54 @@ vary them per-call; only the value a test must override moved.
   `@/lib/...`) could not be unit-tested. Added a `resolve.alias` mirroring tsconfig.
   Both are the kind of "green but actually not running" trap worth calling out.
 
+## Live verification findings (only surfaced against the real service)
+
+A `scripts/verify-personalization.ts` end-to-end run against the real Supermemory
+service (14 checks, now all green) caught four things unit tests with a mocked SDK
+could never have:
+
+1. **`search.execute` silently ignores the singular `containerTag`.** Scoping a
+   search on `containerTag` (singular) returned zero results; only `containerTags`
+   (array) actually filters. The singular form is accepted by the types, so this
+   was a clean compile that would have made scoped retrieval and the auto-learn
+   near-duplicate guard never work in production. Both call sites now use the array.
+
+2. **800ms read timeout was too tight for real latency.** Measured live: a cold
+   Supermemory request is ~2s and the scoped search spikes near 1s (Cloudflare +
+   auth/org lookups). At 800ms the read timed out on legitimate data and fail-open
+   silently emptied the profile, so the feature would have looked broken in the
+   demo. Raised the default to 2500ms (still bounded, still fail-open).
+
+3. **The server-side metadata filter on `documents.list` lags under churn.**
+   Filtering standing memories with `filters: kind=standing` intermittently returned
+   zero while a plain container-tag list returned the row immediately and search
+   found it. Switched `readStanding` to list by tag and filter `kind` CLIENT-SIDE,
+   removing the dependency on that index entirely (the cap makes the extra rows
+   free). This was the single highest-value fix: without it the standing profile was
+   flaky exactly when it mattered.
+
+4. **You cannot delete a memory mid-processing (HTTP 409).** Deleting a preference
+   right after adding it ("still processing") 409s, and processing can take 15s+
+   under load. Blocking the DELETE that long is wrong, so `forgetPreference` retries
+   briefly then raises `StillProcessingError`, which the route maps to a clean 409
+   "try again in a moment" rather than a 19s hang and a 502. Deleting a preference
+   from a prior session (fully processed) succeeds instantly, which is the common
+   case.
+
+The recurring lesson: this whole module talks to an external, eventually-consistent,
+async-processing service over a Cloudflare edge. Three of the four bugs were latency
+or consistency behaviors that a mocked test cannot model. The live script is kept in
+`scripts/` as an acceptance harness; run it on a quiet account (rapid repeated runs
+saturate the free-tier processing queue and make fresh writes lag the read window,
+which is a test-harness artifact, not a product bug).
+
+> Note: full `/api/answer` end-to-end could not be exercised on the connected
+> Supabase instance because an unrelated, pre-existing DB function
+> (`public.distinct_sources`, used by `lib/retrieval/search.ts` at Stage 2) is not
+> deployed there, so retrieval fails before personalization is reached. The
+> answer-path personalization wiring is covered by the route/pipeline/assemble unit
+> tests and the live module verify instead.
+
 ## Design tradeoffs (deliberate)
 
 ### Presentation, never retrieval

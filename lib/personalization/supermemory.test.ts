@@ -23,6 +23,7 @@ import {
   forgetPreference,
   listStandingPreferences,
   OwnershipError,
+  StillProcessingError,
   EMPTY_PROFILE,
 } from './supermemory'
 
@@ -73,7 +74,9 @@ describe('tenant isolation', () => {
   it('scopes every read by the user_<id> container tag', async () => {
     await getProfileBlock(USER, { intent: 'daily_briefing', semantic_query: 'focus today' })
     expect(sdk.list.mock.calls[0]![0]).toMatchObject({ containerTags: [TAG] })
-    expect(sdk.search.mock.calls[0]![0]).toMatchObject({ containerTag: TAG })
+    // search.execute must scope on containerTags (array); the singular containerTag
+    // does not actually filter (verified live), so assert the array form here.
+    expect(sdk.search.mock.calls[0]![0]).toMatchObject({ containerTags: [TAG] })
     expect(TAG).not.toContain(':')
   })
 
@@ -155,5 +158,21 @@ describe('correction (ownership)', () => {
     expect(sdk.del).not.toHaveBeenCalled()
     await forgetPreference(USER, 'owned')
     expect(sdk.del).toHaveBeenCalledWith('owned')
+  })
+
+  it('raises StillProcessingError when the memory stays 409 (delete-after-add race)', async () => {
+    sdk.list.mockResolvedValue({ memories: [mem('owned', 'mine')] })
+    sdk.del.mockRejectedValue(Object.assign(new Error('409'), { status: 409 }))
+    vi.useFakeTimers()
+    try {
+      const p = forgetPreference(USER, 'owned')
+      const assertion = expect(p).rejects.toBeInstanceOf(StillProcessingError)
+      await vi.runAllTimersAsync() // flush the bounded retry backoff
+      await assertion
+      // initial attempt + 2 retries
+      expect(sdk.del).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

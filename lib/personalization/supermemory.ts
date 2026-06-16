@@ -55,7 +55,12 @@ export const personalizationEnabled = (intent: Intent): boolean =>
 const STANDING_LIMIT = Number(process.env.SUPERMEMORY_STANDING_LIMIT ?? 5)
 const SCOPED_LIMIT = Number(process.env.SUPERMEMORY_SCOPED_LIMIT ?? 3)
 const SCOPED_MIN_SCORE = Number(process.env.SUPERMEMORY_SCOPED_MIN_SCORE ?? 0.5)
-const READ_TIMEOUT_MS = Number(process.env.SUPERMEMORY_READ_TIMEOUT_MS ?? 800)
+// 2500ms, not 800: measured live, a cold Supermemory request is ~2s and the scoped
+// search spikes near 1s (Cloudflare-fronted, with auth/org lookups). 800ms timed out
+// the read on legitimate data and fail-open silently emptied the profile. This still
+// bounds the answer path (it runs in parallel with hybridSearch + graph) and fail-open
+// still protects against a true outage.
+const READ_TIMEOUT_MS = Number(process.env.SUPERMEMORY_READ_TIMEOUT_MS ?? 2500)
 
 // Tenant tag. Colon is NOT a legal container-tag character, so use an underscore.
 export const userTag = (userId: string): string => `user_${userId}`
@@ -100,9 +105,13 @@ function metaStr(metadata: unknown, key: string): string | undefined {
 // Standing: always-on priorities for this tenant, deterministic by tag + kind.
 // Sorted by confidence desc then recency desc, capped.
 async function readStanding(tag: string): Promise<Pref[]> {
+  // List by container tag only and filter kind CLIENT-SIDE. The server-side metadata
+  // filter (filters: kind=standing) was verified live to lag under write/delete churn
+  // and intermittently return zero while the plain container-tag list returned the
+  // row immediately. Client-side filtering removes that dependency; the cap makes the
+  // extra rows free. (Scoped prefs live in the same container, hence the kind check.)
   const res = await client().documents.list({
     containerTags: [tag],
-    filters: { AND: [{ key: 'kind', value: 'standing', filterType: 'metadata' }] },
     includeContent: true,
     limit: 50,
     sort: 'createdAt',
@@ -112,10 +121,11 @@ async function readStanding(tag: string): Promise<Pref[]> {
     .map((m) => ({
       id: m.id,
       text: (m.content ?? m.summary ?? m.title ?? '').trim(),
+      kind: metaStr(m.metadata, 'kind') ?? 'standing',
       confidence: Number(metaStr(m.metadata, 'confidence') ?? '1'),
       createdAt: m.createdAt,
     }))
-    .filter((r) => r.text.length > 0)
+    .filter((r) => r.text.length > 0 && r.kind === 'standing')
   rows.sort((a, b) => b.confidence - a.confidence || b.createdAt.localeCompare(a.createdAt))
   return rows.slice(0, STANDING_LIMIT).map(({ id, text }) => ({ id, text }))
 }
@@ -124,9 +134,12 @@ async function readStanding(tag: string): Promise<Pref[]> {
 // search on the query, dropped below the min score, capped.
 async function readScoped(tag: string, query: string): Promise<Pref[]> {
   if (!query.trim()) return []
+  // NOTE: search.execute scopes on containerTags (array). The singular containerTag
+  // is accepted by the types but does NOT filter the search (verified live: it
+  // returns zero results), so tenant scoping MUST use the array form here.
   const res = await client().search.execute({
     q: query,
-    containerTag: tag,
+    containerTags: [tag],
     limit: SCOPED_LIMIT,
     documentThreshold: SCOPED_MIN_SCORE,
   })
@@ -242,7 +255,7 @@ export async function hasNearDuplicate(
   try {
     const res = await client().search.execute({
       q: text,
-      containerTag: userTag(userId),
+      containerTags: [userTag(userId)], // array form scopes; singular does not (see readScoped)
       limit: 1,
     })
     const top = res.results?.[0]
@@ -268,13 +281,40 @@ export async function forgetPreference(userId: string, memoryId: string): Promis
   })
   const isOwned = (owned.memories ?? []).some((m) => m.id === memoryId)
   if (!isOwned) throw new OwnershipError(memoryId)
-  await client().documents.delete(memoryId)
+  // Supermemory returns 409 "Document is still processing" if a memory is deleted
+  // mid-ingestion (founder adds a preference then immediately forgets it). Deleting a
+  // preference from a prior session is fully processed and succeeds instantly; only the
+  // delete-right-after-add case races. Briefly retry to cover "added seconds ago", then
+  // surface StillProcessingError rather than block the request until processing drains
+  // (which can take 15s+ under load). The caller maps that to a clean retry signal.
+  const backoffMs = [1000, 2000]
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await client().documents.delete(memoryId)
+      return
+    } catch (err) {
+      const status = (err as { status?: number }).status
+      if (status !== 409) throw err
+      if (attempt >= backoffMs.length) throw new StillProcessingError(memoryId)
+      await new Promise((r) => setTimeout(r, backoffMs[attempt]))
+    }
+  }
 }
 
 export class OwnershipError extends Error {
   constructor(memoryId: string) {
     super(`memory ${memoryId} not owned by caller`)
     this.name = 'OwnershipError'
+  }
+}
+
+// Raised when a memory cannot be deleted yet because Supermemory is still processing
+// it (HTTP 409). Transient: the caller should map this to a "try again shortly" signal
+// rather than a hard failure.
+export class StillProcessingError extends Error {
+  constructor(memoryId: string) {
+    super(`memory ${memoryId} is still processing; cannot delete yet`)
+    this.name = 'StillProcessingError'
   }
 }
 
