@@ -4,7 +4,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // lands in the temporal dead zone when vitest lifts the mock to the top.
 const m = vi.hoisted(() => {
   class FakeUnauthorized extends Error {}
-  return { FakeUnauthorized, getUserId: vi.fn(), retrieve: vi.fn(), synthesizeStream: vi.fn() }
+  class FakeGatewayDown extends Error {
+    override name = 'GatewayDownError'
+  }
+  return {
+    FakeUnauthorized,
+    FakeGatewayDown,
+    getUserId: vi.fn(),
+    retrieve: vi.fn(),
+    synthesizeStream: vi.fn(),
+    embedText: vi.fn(),
+    cacheGet: vi.fn(),
+    cacheSet: vi.fn(),
+    assertGatewayUp: vi.fn(),
+  }
 })
 
 vi.mock('@/lib/auth/session', () => ({
@@ -18,17 +31,36 @@ vi.mock('@/lib/retrieval/synthesize', () => ({
   REFUSAL: 'REFUSAL_TEXT',
   synthesizeStream: m.synthesizeStream,
 }))
-vi.mock('@/lib/observability/langfuse', () => ({ tracingEnabled: false, flushTracing: async () => {} }))
+vi.mock('@/lib/observability/langfuse', () => ({
+  tracingEnabled: false,
+  flushTracing: async () => {},
+  // traceStage runs the wrapped fn untouched when tracing is off.
+  traceStage: async (_id: string, _meta: unknown, fn: () => unknown) => fn(),
+}))
 // @langfuse/tracing is imported at module scope but unresolvable under vitest; it
 // is only called when tracing is enabled (mocked off here).
-vi.mock('@langfuse/tracing', () => ({ propagateAttributes: vi.fn(), startActiveObservation: vi.fn() }))
+vi.mock('@langfuse/tracing', () => ({
+  propagateAttributes: vi.fn(),
+  startActiveObservation: vi.fn(),
+}))
 // Preference learning is fire-and-forget out of the stream's onFinish; stub it so
 // the route does not reach into Supermemory during the test.
 vi.mock('@/lib/personalization/enqueue', () => ({ enqueueLearnPreferences: vi.fn() }))
+// Phase 5: the route embeds the question (Stage 0), checks the semantic cache,
+// and pre-checks the gateway breaker. Stub all three so tests stay offline.
+vi.mock('@/lib/ingestion/embed', () => ({ embedText: m.embedText }))
+vi.mock('@/lib/cache/semantic-cache', () => ({
+  semanticCache: { get: m.cacheGet, set: m.cacheSet },
+}))
+vi.mock('@/lib/llm/gateway', () => ({
+  assertGatewayUp: m.assertGatewayUp,
+  GatewayDownError: m.FakeGatewayDown,
+}))
 
 // retrieve() returns a founder profile the route reads counts off of; every mock
 // resolution supplies one so route code paths do not throw on undefined.
 const PROFILE = { standingCount: 0, scopedCount: 0 }
+const EMBEDDING = [0.1, 0.2, 0.3]
 
 import { POST } from './route'
 
@@ -46,16 +78,34 @@ describe('POST /api/answer', () => {
     m.getUserId.mockReset().mockResolvedValue('u1')
     m.retrieve.mockReset()
     m.synthesizeStream.mockReset()
+    m.embedText.mockReset().mockResolvedValue(EMBEDDING)
+    m.cacheGet.mockReset().mockResolvedValue(null)
+    m.cacheSet.mockReset().mockResolvedValue(undefined)
+    m.assertGatewayUp.mockReset().mockResolvedValue(undefined)
   })
 
-  it('short-circuits to the refusal when context is thin (no synthesis call)', async () => {
-    m.retrieve.mockResolvedValue({
-      plan: { intent: 'lookup' },
-      context: { block: '', citations: [] },
+  function retrieveResult(over: Record<string, unknown> = {}) {
+    return {
+      plan: { intent: 'daily_briefing' },
+      context: { block: '[1] content', citations: [{ n: 1, source: 'gmail', date: '2026-06-14' }] },
       relaxed: false,
-      itemCount: 0,
+      itemCount: 1,
       profile: PROFILE,
-    })
+      queryEmbedding: EMBEDDING,
+      rerankApplied: true,
+      railDropped: 2,
+      ...over,
+    }
+  }
+
+  it('short-circuits to the refusal when context is thin (no synthesis call)', async () => {
+    m.retrieve.mockResolvedValue(
+      retrieveResult({
+        plan: { intent: 'lookup' },
+        context: { block: '', citations: [] },
+        itemCount: 0,
+      }),
+    )
 
     const res = await POST(req({ question: 'anything' }))
 
@@ -66,14 +116,9 @@ describe('POST /api/answer', () => {
   })
 
   it('streams a synthesized answer with citations when context is present', async () => {
-    const citations = [{ n: 1, source: 'gmail', date: '2026-06-14' }]
-    m.retrieve.mockResolvedValue({
-      plan: { intent: 'daily_briefing' },
-      context: { block: '[1] content', citations },
-      relaxed: true,
-      itemCount: 1,
-      profile: { standingCount: 2, scopedCount: 1 },
-    })
+    m.retrieve.mockResolvedValue(
+      retrieveResult({ relaxed: true, profile: { standingCount: 2, scopedCount: 1 } }),
+    )
     m.synthesizeStream.mockReturnValue({
       toTextStreamResponse: ({ headers }: { headers: Record<string, string> }) =>
         new Response('the answer', { status: 200, headers }),
@@ -83,10 +128,83 @@ describe('POST /api/answer', () => {
 
     expect(m.synthesizeStream).toHaveBeenCalledTimes(1)
     expect(await res.text()).toBe('the answer')
-    expect(decodeMeta(res)).toMatchObject({ thin: false, relaxed: true, intent: 'daily_briefing' })
+    expect(decodeMeta(res)).toMatchObject({
+      thin: false,
+      relaxed: true,
+      intent: 'daily_briefing',
+      cached: false,
+      degraded: false,
+      rerankApplied: true,
+      railDropped: 2,
+    })
     expect((decodeMeta(res).citations as unknown[]).length).toBe(1)
     // Founder-profile counts ride along in meta so the Ask UI can show what shaped ordering.
     expect(decodeMeta(res).personalization).toEqual({ standing: 2, scoped: 1 })
+  })
+
+  it('serves a cache hit without running the pipeline (cached: true)', async () => {
+    m.cacheGet.mockResolvedValue('the cached answer')
+
+    const res = await POST(req({ question: 'repeat question' }))
+
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('the cached answer')
+    expect(m.retrieve).not.toHaveBeenCalled()
+    expect(m.synthesizeStream).not.toHaveBeenCalled()
+    expect(decodeMeta(res)).toMatchObject({ cached: true })
+  })
+
+  it('writes the answer to the cache on synthesis success', async () => {
+    m.retrieve.mockResolvedValue(retrieveResult())
+    // Capture and immediately run onFinish so the cache write fires in the test.
+    m.synthesizeStream.mockImplementation(
+      (_q: string, _ctx: unknown, opts: { onFinish: (t: string) => Promise<void> }) => {
+        void opts.onFinish('the answer')
+        return {
+          toTextStreamResponse: ({ headers }: { headers: Record<string, string> }) =>
+            new Response('the answer', { status: 200, headers }),
+        }
+      },
+    )
+
+    await POST(req({ question: 'cache me' }))
+
+    expect(m.cacheSet).toHaveBeenCalledTimes(1)
+    expect(m.cacheSet).toHaveBeenCalledWith('u1', EMBEDDING, 'the answer')
+  })
+
+  it('does NOT write to the cache when context is thin (refusal path)', async () => {
+    m.retrieve.mockResolvedValue(
+      retrieveResult({ context: { block: '', citations: [] }, itemCount: 0 }),
+    )
+
+    await POST(req({ question: 'no data' }))
+
+    expect(m.cacheSet).not.toHaveBeenCalled()
+  })
+
+  it('degrades to cited context with a banner when the gateway circuit is open', async () => {
+    m.retrieve.mockResolvedValue(retrieveResult())
+    m.assertGatewayUp.mockRejectedValue(new m.FakeGatewayDown('circuit open'))
+
+    const res = await POST(req({ question: 'gateway down' }))
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('x-zrux-degraded')).toBe('true')
+    const body = await res.text()
+    expect(body).toContain('Summary temporarily unavailable')
+    expect(body).toContain('[1] content')
+    expect(m.synthesizeStream).not.toHaveBeenCalled()
+    expect(m.cacheSet).not.toHaveBeenCalled()
+    expect(decodeMeta(res)).toMatchObject({ degraded: true, intent: 'daily_briefing' })
+  })
+
+  it('returns 503 when the gateway is down before any context is retrieved', async () => {
+    m.retrieve.mockRejectedValue(new m.FakeGatewayDown('gateway circuit is open'))
+
+    const res = await POST(req({ question: 'fully down' }))
+
+    expect(res.status).toBe(503)
   })
 
   it('rejects a blank question with 400', async () => {

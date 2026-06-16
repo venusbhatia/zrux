@@ -1,0 +1,20 @@
+{"question": "Which tasks are blocked right now?", "expected_external_ids": ["eval-lin-blocked-payment", "eval-lin-blocked-auth", "eval-lin-blocked-dashboard"], "k": [1, 3, 5]}
+{"question": "What should I focus on today?", "expected_external_ids": ["eval-lin-blocked-payment", "eval-gm-investor-northwind", "eval-gm-board-prep"], "k": [3, 5]}
+{"question": "Summarize investor activity this week.", "expected_external_ids": ["eval-gm-investor-northwind", "eval-gm-investor-update", "eval-cal-investor-call"], "k": [3, 5]}
+{"question": "What should I know before my next meeting?", "expected_external_ids": ["eval-cal-investor-call", "eval-gm-investor-northwind"], "k": [3, 5]}
+{"question": "What follow-ups am I missing?", "expected_external_ids": ["eval-gm-investor-northwind", "eval-gm-acme-feedback"], "k": [3, 5]}
+{"question": "What customer issues are showing up repeatedly?", "expected_external_ids": ["eval-gm-customer-issue", "eval-lin-blocked-auth"], "k": [3, 5]}
+{"question": "What is the status of the payment webhook issue?", "expected_external_ids": ["eval-lin-blocked-payment"], "k": [1, 3]}
+{"question": "Tell me about the Northwind term sheet.", "expected_external_ids": ["eval-gm-investor-northwind"], "k": [1, 3]}
+{"question": "What did Sarah Chen send me?", "expected_external_ids": ["eval-gm-investor-northwind", "eval-cal-investor-call"], "k": [3, 5]}
+{"question": "What is blocking the investor dashboard?", "expected_external_ids": ["eval-lin-blocked-dashboard"], "k": [1, 3]}
+{"question": "What is Acme Corp asking for?", "expected_external_ids": ["eval-gm-acme-feedback", "eval-cal-acme-demo"], "k": [3, 5]}
+{"question": "When is the board meeting and what do I need for it?", "expected_external_ids": ["eval-cal-board", "eval-gm-board-prep"], "k": [3, 5]}
+{"question": "What engineering work is in progress?", "expected_external_ids": ["eval-lin-prog-onboarding", "eval-lin-prog-search"], "k": [3, 5]}
+{"question": "What did we finish recently?", "expected_external_ids": ["eval-lin-done-okr", "eval-lin-done-migration"], "k": [3, 5]}
+{"question": "What is on the backlog?", "expected_external_ids": ["eval-lin-backlog-mobile", "eval-lin-backlog-billing", "eval-lin-backlog-audit"], "k": [3, 5]}
+{"question": "Do we have any hiring updates?", "expected_external_ids": ["eval-gm-hiring"], "k": [1, 3]}
+{"question": "What vendor contracts need attention?", "expected_external_ids": ["eval-gm-vendor-contract"], "k": [1, 3]}
+{"question": "What is happening with auth rate limiting?", "expected_external_ids": ["eval-lin-blocked-auth"], "k": [1, 3]}
+{"question": "What happened in 2010?", "expected_external_ids": [], "k": [3]}
+{"question": "Tell me about our Chicago office.", "expected_external_ids": [], "k": [3]}

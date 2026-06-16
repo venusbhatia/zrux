@@ -10,7 +10,11 @@
 // and CI without credentials run completely untouched.
 
 import { LangfuseSpanProcessor } from '@langfuse/otel'
-import { getLangfuseTracer, setLangfuseTracerProvider } from '@langfuse/tracing'
+import {
+  getLangfuseTracer,
+  setLangfuseTracerProvider,
+  startActiveObservation,
+} from '@langfuse/tracing'
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
 import type { AttributeValue } from '@opentelemetry/api'
 import type { TelemetrySettings } from 'ai'
@@ -65,4 +69,35 @@ export function aiTelemetry(
     tracer: getLangfuseTracer(),
     ...(metadata ? { metadata } : {}),
   }
+}
+
+// Wrap a non-AI stage (cache check, hybrid search, rerank, rollup) in a Langfuse
+// child span so the answer trace shows the full waterfall, not just the AI SDK
+// generations. A no-op (runs fn untouched) when tracing is disabled.
+//
+// The initial metadata is recorded as the span input; the optional return of
+// `outputOf` becomes the span output (e.g. hit counts), which keeps the call site
+// readable. On any throw the span is marked ERROR and the error is re-thrown.
+export async function traceStage<T>(
+  functionId: string,
+  metadata: Record<string, unknown>,
+  fn: () => Promise<T>,
+  outputOf?: (result: T) => Record<string, unknown>,
+): Promise<T> {
+  if (!tracingEnabled) return fn()
+  return startActiveObservation(
+    functionId,
+    async (span) => {
+      span.update({ input: metadata })
+      try {
+        const result = await fn()
+        if (outputOf) span.update({ output: outputOf(result) })
+        return result
+      } catch (err) {
+        span.update({ level: 'ERROR', statusMessage: String(err) })
+        throw err
+      }
+    },
+    { endOnExit: true },
+  )
 }
