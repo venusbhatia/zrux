@@ -5,7 +5,7 @@
 // reskin to the mockup (chat bubbles, inline citation chips, expandable SOURCES,
 // preset chips, composer) while keeping the proven streaming + decode logic.
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from '@/components/icons'
 import { AnswerText } from '@/components/ask/AnswerText'
 import { SourceCard, type SourceCitation } from '@/components/ask/SourceCard'
@@ -16,6 +16,14 @@ interface Meta {
   itemCount: number
   intent: string
   citations: SourceCitation[]
+  // Layer 3 personalization: how many durable preferences shaped this answer's
+  // ordering. Presentation only, never adds citations.
+  personalization?: { standing: number; scoped: number }
+}
+
+interface Preference {
+  id: string
+  text: string
 }
 
 interface Exchange {
@@ -55,9 +63,64 @@ export default function AskPage() {
   const [loading, setLoading] = useState(false)
   const nextId = useRef(1)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const [prefs, setPrefs] = useState<Preference[]>([])
+  const [prefText, setPrefText] = useState('')
+  const [prefBusy, setPrefBusy] = useState(false)
 
   function patch(id: number, fields: Partial<Exchange>) {
     setExchanges((prev) => prev.map((e) => (e.id === id ? { ...e, ...fields } : e)))
+  }
+
+  async function loadPrefs() {
+    try {
+      const res = await fetch('/api/remember')
+      if (!res.ok) return
+      const data = (await res.json()) as { preferences: Preference[] }
+      setPrefs(data.preferences ?? [])
+    } catch {
+      // Fail-open: the preferences panel is non-essential to asking questions.
+    }
+  }
+
+  useEffect(() => {
+    void loadPrefs()
+  }, [])
+
+  async function addPref() {
+    const text = prefText.trim()
+    if (!text || prefBusy) return
+    setPrefBusy(true)
+    try {
+      const res = await fetch('/api/remember', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      if (res.ok) {
+        setPrefText('')
+        await loadPrefs()
+      }
+    } finally {
+      setPrefBusy(false)
+    }
+  }
+
+  async function forgetPref(id: string) {
+    // Optimistic removal, rolled back if the server did not actually delete it (a
+    // network error, or a 409 while the preference is still being indexed) so the UI
+    // never shows a preference as gone while it still exists server-side.
+    const snapshot = prefs
+    setPrefs((prev) => prev.filter((p) => p.id !== id))
+    try {
+      const res = await fetch(`/api/remember/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) {
+        setPrefs(snapshot)
+        return
+      }
+      await loadPrefs()
+    } catch {
+      setPrefs(snapshot)
+    }
   }
 
   async function ask(q: string) {
@@ -159,6 +222,14 @@ export default function AskPage() {
                           </span>
                         )}
                       </div>
+                      {ex.meta?.personalization &&
+                        ex.meta.personalization.standing + ex.meta.personalization.scoped > 0 && (
+                          <div className="mt-2 text-[12px] text-muted">
+                            Ordering shaped by{' '}
+                            {ex.meta.personalization.standing + ex.meta.personalization.scoped} of
+                            your preferences.
+                          </div>
+                        )}
                       {citations.length > 0 && (
                         <div className="mt-4">
                           <div className="mb-2 text-[11px] font-semibold tracking-[.04em] text-hint">
@@ -193,6 +264,53 @@ export default function AskPage() {
       </div>
 
       <div className="mt-[26px]">
+        <div className="mb-3 rounded-input border border-hairline bg-white p-3.5 shadow-flat">
+          <div className="mb-1 text-[11px] font-semibold tracking-[.04em] text-hint">
+            PREFERENCES
+          </div>
+          <p className="mb-2.5 text-[12px] text-muted">
+            Standing priorities that shape how answers are ordered. They never add facts.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              value={prefText}
+              onChange={(e) => setPrefText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void addPref()
+                }
+              }}
+              placeholder="Remember a preference, e.g. triage investor threads first"
+              className="flex-1 rounded-[10px] border border-hairline bg-white px-3 py-2 text-[13px] text-ink outline-none placeholder:text-faint focus:border-accent"
+            />
+            <button
+              onClick={() => void addPref()}
+              disabled={prefBusy || !prefText.trim()}
+              className="rounded-[10px] border border-hairline bg-white px-3.5 py-2 text-[13px] text-ink transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+            >
+              Remember
+            </button>
+          </div>
+          {prefs.length > 0 && (
+            <ul className="mt-2.5 flex flex-col gap-1">
+              {prefs.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 text-[13px] text-ink"
+                >
+                  <span>{p.text}</span>
+                  <button
+                    onClick={() => void forgetPref(p.id)}
+                    className="flex-none text-[12px] text-muted underline transition-colors hover:text-accent"
+                  >
+                    Forget
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <div className="mb-3 flex flex-wrap gap-2">
           {PRESETS.map((p) => (
             <button
