@@ -40,3 +40,6 @@ Assignment.pdf
 
 # sentry source-map upload token
 .env.sentry-build-plugin
+
+# Claude Code local worktrees/jobs
+.claude/
