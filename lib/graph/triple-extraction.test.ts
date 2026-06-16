@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { shouldExtract } from './triple-extraction'
+import { shouldExtract, isNamedEntity } from './triple-extraction'
 
 describe('shouldExtract (triple-extraction gating)', () => {
   it('runs for high-signal sources', () => {
@@ -17,5 +17,19 @@ describe('shouldExtract (triple-extraction gating)', () => {
     expect(shouldExtract('slack', 'message')).toBe(false)
     expect(shouldExtract('sentry', 'error')).toBe(false)
     expect(shouldExtract('github', 'pr')).toBe(false)
+  })
+})
+
+describe('isNamedEntity (graph-node hygiene)', () => {
+  it('accepts real names', () => {
+    expect(isNamedEntity('Sarah Chen')).toBe(true)
+    expect(isNamedEntity('Northwind Ventures')).toBe(true)
+    expect(isNamedEntity('Atlas')).toBe(true)
+  })
+
+  it('rejects placeholders and generic roles', () => {
+    for (const junk of ['<UNKNOWN>', 'the team', 'us', 'someone', 'N/A', 'none', 'X']) {
+      expect(isNamedEntity(junk)).toBe(false)
+    }
   })
 })
