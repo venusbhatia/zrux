@@ -151,6 +151,28 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['sync_state']['Insert']>
         Relationships: []
       }
+      source_connection: {
+        Row: {
+          user_id: string
+          source: string
+          connected_account_id: string
+          status: string
+          metadata: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          source: string
+          connected_account_id: string
+          status?: string
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['source_connection']['Insert']>
+        Relationships: []
+      }
     }
     Functions: {
       hybrid_search: {

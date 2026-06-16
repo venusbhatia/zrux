@@ -26,6 +26,8 @@ export interface RawItem {
   sourceUpdatedAt: Date
   status?: string
   metadata?: Record<string, unknown>
+  // Normalized human-readable text content; chunked + enriched + embedded.
+  body: string
   // Untouched source payload; episodic ground truth for re-processing.
   raw: unknown
 }
