@@ -5,6 +5,7 @@
 // client can render without a second round-trip.
 
 import type { NextRequest } from 'next/server'
+import { captureError } from '@/lib/observability/report'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/db/supabase'
 
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest): Promise<Response> {
 
     return Response.json({ entities: entities ?? [], edges: links })
   } catch (err) {
-    console.error(`[graph] fetch failed user=${userId}:`, err)
+    captureError('graph', err, { userId })
     return new Response('Failed to load graph', { status: 500 })
   }
 }

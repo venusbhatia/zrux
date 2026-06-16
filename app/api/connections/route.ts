@@ -3,6 +3,7 @@
 // indexing progress / unlock gate. Read-only; user_id scoped first (RLS second).
 
 import type { NextRequest } from 'next/server'
+import { captureError } from '@/lib/observability/report'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/db/supabase'
 
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest): Promise<Response> {
 
     return Response.json({ connections: payload })
   } catch (err) {
-    console.error(`[connections] fetch failed user=${userId}:`, err)
+    captureError('connections', err, { userId })
     return new Response('Failed to load connections', { status: 500 })
   }
 }

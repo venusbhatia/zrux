@@ -11,6 +11,7 @@ import type { NextRequest } from 'next/server'
 import { verifySlackSignature } from '@/lib/webhooks/slack'
 import { enqueueEvent } from '@/lib/ingestion/enqueue'
 import { createServiceClient } from '@/lib/db/supabase'
+import { captureError } from '@/lib/observability/report'
 
 export const runtime = 'nodejs'
 
@@ -25,7 +26,7 @@ async function resolveSlackUser(teamId: string | undefined): Promise<string | nu
     .eq('source', 'slack')
     .eq('status', 'active')
   if (error) {
-    console.error('[webhook:slack] tenant lookup failed:', error.message)
+    captureError('webhook:slack', new Error(error.message), { stage: 'tenant-lookup' })
     return null
   }
   const rows = data ?? []
@@ -97,7 +98,8 @@ async function handleSlack(req: NextRequest, rawBody: string): Promise<Response>
   // stable id the idempotency key collapses to "undefined:undefined" and every
   // such event collides onto one key, silently dropping all but the first. Skip
   // (ack) instead so we never enqueue under a colliding key.
-  const dedupeId = envelope.event_id ?? (event.channel && event.ts ? `${event.channel}:${event.ts}` : null)
+  const dedupeId =
+    envelope.event_id ?? (event.channel && event.ts ? `${event.channel}:${event.ts}` : null)
   if (!dedupeId) {
     console.warn('[webhook:slack] event missing event_id and channel/ts; dropping')
     return Response.json({ ok: true, skipped: true })

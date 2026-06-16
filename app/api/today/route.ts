@@ -7,6 +7,7 @@
 // LLM call.
 
 import type { NextRequest } from 'next/server'
+import { captureError } from '@/lib/observability/report'
 import { generateObject } from 'ai'
 import { retrieve } from '@/lib/retrieval/pipeline'
 import { isThin } from '@/lib/retrieval/synthesize'
@@ -107,7 +108,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     }
     return Response.json(payload)
   } catch (err) {
-    console.error(`[today] failed user=${userId}:`, err)
+    captureError('today', err, { userId })
     return new Response('Briefing temporarily unavailable', { status: 502 })
   }
 }

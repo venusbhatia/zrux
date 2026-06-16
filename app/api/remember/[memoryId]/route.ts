@@ -10,6 +10,7 @@ import {
   OwnershipError,
   StillProcessingError,
 } from '@/lib/personalization/supermemory'
+import { captureError } from '@/lib/observability/report'
 
 export const runtime = 'nodejs'
 
@@ -43,7 +44,7 @@ export async function DELETE(
         status: 409,
       })
     }
-    console.error(`[remember] delete failed user=${userId} memory=${memoryId}:`, err)
+    captureError('remember', err, { userId, memoryId, op: 'delete' })
     return new Response('Could not forget preference', { status: 502 })
   }
 }

@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto'
 import { tasks } from '@trigger.dev/sdk'
 import type { learnPreferencesTask } from '../../trigger/personalize'
+import { captureError } from '../observability/report'
 
 function hash(s: string): string {
   return createHash('sha256').update(s).digest('hex').slice(0, 32)
@@ -30,6 +31,6 @@ export async function enqueueLearnPreferences(
       { idempotencyKey: `learn:${userId}:${hash(question + answer)}` },
     )
   } catch (err) {
-    console.error('[personalize] enqueue failed:', (err as Error).message)
+    captureError('personalize', err, { userId, stage: 'enqueue' })
   }
 }

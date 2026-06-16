@@ -3,6 +3,7 @@
 // source_connection row so the callback can finalize it. Fast (no ingestion).
 
 import type { NextRequest } from 'next/server'
+import { captureError } from '@/lib/observability/report'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { composio, authConfigId } from '@/lib/connectors/composio'
 import { isConnectable } from '@/lib/connectors/registry'
@@ -46,9 +47,12 @@ export async function POST(
     )
     if (error) throw new Error(error.message)
 
-    return Response.json({ redirectUrl: connRequest.redirectUrl, connectedAccountId: connRequest.id })
+    return Response.json({
+      redirectUrl: connRequest.redirectUrl,
+      connectedAccountId: connRequest.id,
+    })
   } catch (err) {
-    console.error(`[connect] ${source} failed user=${userId}:`, err)
+    captureError('connect', err, { userId, source })
     return new Response('Failed to start connection', { status: 502 })
   }
 }

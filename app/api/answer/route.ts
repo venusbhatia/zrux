@@ -13,6 +13,7 @@ import { retrieve } from '@/lib/retrieval/pipeline'
 import { isThin, synthesizeStream, REFUSAL } from '@/lib/retrieval/synthesize'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { flushTracing, tracingEnabled, traceStage } from '@/lib/observability/langfuse'
+import { captureError } from '@/lib/observability/report'
 import { enqueueLearnPreferences } from '@/lib/personalization/enqueue'
 import { embedText } from '@/lib/ingestion/embed'
 import { semanticCache } from '@/lib/cache/semantic-cache'
@@ -88,10 +89,10 @@ export async function POST(req: NextRequest): Promise<Response> {
     // GatewayDownError that escapes buildAnswer means even retrieval's plan call
     // could not reach the gateway (no context to show); surface a clean 503.
     if (err instanceof GatewayDownError) {
-      console.error(`[answer] gateway down, no context to degrade with user=${userId}`)
+      captureError('answer', err, { userId, stage: 'gateway-down-no-context' })
       return new Response('Answer service temporarily unavailable', { status: 503 })
     }
-    console.error(`[answer] pipeline error user=${userId}:`, err)
+    captureError('answer', err, { userId, stage: 'pipeline' })
     return new Response('Answer service temporarily unavailable', { status: 502 })
   }
 }
@@ -219,7 +220,7 @@ async function buildAnswer(
       // never cache thin/refusal/degraded responses. Fire-and-forget, fail-open.
       void semanticCache
         .set(userId, queryEmbedding, text)
-        .catch((e) => console.error('[cache] write failed:', (e as Error).message))
+        .catch((e) => captureError('cache', e, { userId, op: 'set' }))
       // Out-of-band: learn durable preferences after the conversation. Guarded so
       // it can never throw into the stream.
       void enqueueLearnPreferences(userId, question, text)

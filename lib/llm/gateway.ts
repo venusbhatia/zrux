@@ -14,6 +14,7 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { Redis } from '@upstash/redis'
 import type { LanguageModelV1 } from 'ai'
+import { captureError } from '@/lib/observability/report'
 
 function requireEnv(name: string): string {
   const v = process.env[name]
@@ -199,10 +200,13 @@ export async function callWithFallback<T>(fn: (model: LanguageModelV1) => Promis
   try {
     return await withCircuitBreaker(() => withRetry(() => fn(chatModel(PRIMARY_MODEL))))
   } catch (primaryErr) {
-    console.warn(
-      `[gateway] primary (${PRIMARY_MODEL}) failed: ${(primaryErr as Error).name}; ` +
-        `falling back to ${FALLBACK_MODEL}`,
-    )
+    // Capture the primary failure even when the fallback recovers: a silently
+    // degrading primary model is invisible to the route (it sees a success).
+    captureError('gateway', primaryErr, {
+      stage: 'primary-failed-falling-back',
+      primary: PRIMARY_MODEL,
+      fallback: FALLBACK_MODEL,
+    })
     try {
       return await withRetry(() => fn(chatModel(FALLBACK_MODEL)))
     } catch (fallbackErr) {
@@ -220,12 +224,20 @@ export async function callWithFallback<T>(fn: (model: LanguageModelV1) => Promis
 // outcome (noteGatewaySuccess / noteGatewayFailure) so the breaker still trips.
 
 // Throws GatewayDownError when the breaker is OPEN and the cooldown has not
-// elapsed. Lets the call proceed otherwise (closed, or ready for a probe).
+// elapsed. When the cooldown HAS elapsed it transitions OPEN -> HALF_OPEN and
+// persists that before letting the probe through, mirroring withCircuitBreaker.
+// Persisting HALF_OPEN is what lets a failed streaming probe (noteGatewayFailure
+// -> applyFailure) re-open the breaker: without it, applyFailure would see a stale
+// OPEN state with an expired window and silently reset to CLOSED on the failure.
 export async function assertGatewayUp(): Promise<void> {
   if (!redis) return
   const state = await readState()
-  if (state.state === 'open' && Date.now() < state.openUntilMs) {
-    throw new GatewayDownError('gateway circuit is open')
+  if (state.state === 'open') {
+    if (Date.now() < state.openUntilMs) {
+      throw new GatewayDownError('gateway circuit is open')
+    }
+    await writeState({ ...state, state: 'half-open' })
+    console.warn('[breaker] cooldown elapsed -> HALF_OPEN probe (streaming)')
   }
 }
 
