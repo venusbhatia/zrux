@@ -155,34 +155,34 @@ export default async function LandingPage() {
           </div>
         </header>
 
-        {/* assemble (static) */}
-        <section className="section assemble" id="assemble">
-          <div className="assemble-head">
-            <h2 className="reveal">Scattered context, assembled by morning.</h2>
-            <p className="sub reveal d1">
-              zrux reads each source as it changes, keeps a living memory of your company, and writes
-              it all down to one place you can trust.
-            </p>
-          </div>
-          <div className="frags">
-            {[
-              { icon: MailIcon, label: 'Email', text: 'Term sheet from Aria Capital. They asked for the cap table.' },
-              { icon: CheckIcon, label: 'Linear', text: 'ENG-412 marked as blocking the launch by Raj.' },
-              { icon: ChatIcon, label: 'Slack', text: 'Customer in #support hit the export bug again.' },
-              { icon: CalendarIcon, label: 'Calendar', text: 'Board meeting Thursday. Deck not sent yet.' },
-              { icon: VoiceIcon, label: 'Voice memo', text: 'Follow up with the design contractor on onboarding.' },
-            ].map((f) => (
-              <article className="frag reveal" key={f.label}>
-                <div className="fh">
-                  {f.icon}
-                  <span>{f.label}</span>
-                </div>
-                <p>{f.text}</p>
-              </article>
-            ))}
-          </div>
-          <div className="brief-float reveal d2">
-            <div className="brief-card">
+        {/* assemble: 260vh sticky scroll-scrub, driven by LandingMotion */}
+        <section className="stage" id="assemble">
+          <div className="stage-sticky">
+            <div className="stage-head">
+              <h2 className="reveal">Scattered context, assembled by morning.</h2>
+              <p className="sub reveal d1">
+                zrux reads each source as it changes, keeps a living memory of your company, and
+                writes it all down to one place you can trust.
+              </p>
+            </div>
+            <div className="stage-canvas">
+              {[
+                { icon: MailIcon, label: 'Email', text: 'Term sheet from Aria Capital. They asked for the cap table.', x: -32, y: -12, r: -7 },
+                { icon: CheckIcon, label: 'Linear', text: 'ENG-412 marked as blocking the launch by Raj.', x: 30, y: -16, r: 6 },
+                { icon: ChatIcon, label: 'Slack', text: 'Customer in #support hit the export bug again.', x: -34, y: 18, r: 5 },
+                { icon: CalendarIcon, label: 'Calendar', text: 'Board meeting Thursday. Deck not sent yet.', x: 33, y: 16, r: -6 },
+                { icon: VoiceIcon, label: 'Voice memo', text: 'Follow up with the design contractor on onboarding.', x: 0, y: -26, r: -3 },
+              ].map((f) => (
+                <article className="frag" key={f.label} data-x={f.x} data-y={f.y} data-r={f.r}>
+                  <div className="fh">
+                    {f.icon}
+                    <span>{f.label}</span>
+                  </div>
+                  <p>{f.text}</p>
+                </article>
+              ))}
+              <div className="brief-float" id="briefFloat">
+                <div className="brief-card">
               <div className="brief-top">
                 <span className="brief-title">Today</span>
                 <span className="brief-date">Monday morning</span>
@@ -207,6 +207,8 @@ export default async function LandingPage() {
                 <div className="bi-body">
                   <div className="bi-text">The export bug is now three customers. Worth a look.</div>
                   <span className="tag">Signal</span>
+                </div>
+              </div>
                 </div>
               </div>
             </div>
@@ -329,8 +331,19 @@ export default async function LandingPage() {
               </p>
               <div className="cell-visual">
                 <div className="wave" aria-hidden="true">
-                  {[40, 54, 30, 48, 22, 46, 34, 52, 26, 44].map((h, i) => (
-                    <i key={i} style={{ height: h, animationDelay: `${(i % 4) * 0.1}s` }} />
+                  {[
+                    [40, 0],
+                    [54, 0.1],
+                    [30, 0.2],
+                    [48, 0.3],
+                    [22, 0.15],
+                    [46, 0.25],
+                    [34, 0.05],
+                    [52, 0.35],
+                    [26, 0.2],
+                    [44, 0.1],
+                  ].map(([h, d], i) => (
+                    <i key={i} style={{ height: h, animationDelay: `${d}s` }} />
                   ))}
                 </div>
                 <div className="voice-note">

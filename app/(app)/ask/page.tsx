@@ -134,13 +134,29 @@ export default function AskPage() {
                     <div className="min-w-0 flex-1">
                       <div className="rounded-[6px_18px_18px_18px] border border-hairline bg-white px-5 py-[18px] text-[15px] leading-[1.62] text-ink shadow-card">
                         {ex.answer ? (
-                          <AnswerText
-                            text={ex.answer}
-                            citationNumbers={citeNums}
-                            onCite={(n) => setOpenCite((m) => ({ ...m, [ex.id]: n }))}
-                          />
+                          <>
+                            <AnswerText
+                              text={ex.answer}
+                              citationNumbers={citeNums}
+                              onCite={(n) => setOpenCite((m) => ({ ...m, [ex.id]: n }))}
+                            />
+                            {!ex.done && (
+                              <span className="ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[2px] animate-pulse bg-accent align-middle" />
+                            )}
+                          </>
                         ) : (
-                          <span className="text-faint">Thinking...</span>
+                          <span
+                            className="inline-flex items-center gap-1.5 text-faint"
+                            aria-label="Thinking"
+                          >
+                            {[0, 150, 300].map((d) => (
+                              <span
+                                key={d}
+                                className="h-1.5 w-1.5 animate-pulse rounded-full bg-faint"
+                                style={{ animationDelay: `${d}ms` }}
+                              />
+                            ))}
+                          </span>
                         )}
                       </div>
                       {citations.length > 0 && (

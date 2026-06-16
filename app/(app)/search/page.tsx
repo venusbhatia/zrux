@@ -22,6 +22,7 @@ export default function SearchPage() {
   const [filter, setFilter] = useState('all')
   const [data, setData] = useState<SearchResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
   const [sources, setSources] = useState<string[]>([])
   const abortRef = useRef<AbortController | null>(null)
 
@@ -44,10 +45,12 @@ export default function SearchPage() {
     const q = query.trim()
     if (q.length === 0) {
       setData(null)
+      setError(false)
       setLoading(false)
       return
     }
     setLoading(true)
+    setError(false)
     const handle = setTimeout(async () => {
       abortRef.current?.abort()
       const controller = new AbortController()
@@ -57,16 +60,22 @@ export default function SearchPage() {
         if (filter !== 'all') params.set('sources', filter)
         const res = await fetch(`/api/search?${params.toString()}`, { signal: controller.signal })
         if (!res.ok) {
-          setData({ query: q, total: 0, sourceCount: 0, results: [] })
+          setError(true)
+          setData(null)
           return
         }
         setData((await res.json()) as SearchResponse)
+        setError(false)
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
-          setData({ query: q, total: 0, sourceCount: 0, results: [] })
+          setError(true)
+          setData(null)
         }
       } finally {
-        setLoading(false)
+        // Only clear loading if this request is still the live one. A superseded
+        // request was aborted by a newer keystroke, whose fetch is still running,
+        // so clearing here would flash the spinner off prematurely.
+        if (!controller.signal.aborted) setLoading(false)
       }
     }, 350)
     return () => clearTimeout(handle)
@@ -115,6 +124,12 @@ export default function SearchPage() {
           icon="search"
           title="Search across your tools"
           body="One query runs over email, Slack, Linear, Notion and everything else you have connected."
+        />
+      ) : error ? (
+        <EmptyState
+          icon="alert"
+          title="Search is unavailable"
+          body="Something went wrong running that search. Try again in a moment."
         />
       ) : loading && data === null ? (
         <div className="mt-5">

@@ -139,3 +139,63 @@ alternative not taken, and why. Companion to `trade-offs.md` (whole-system) and
   and `next dev` require the env to be present even to collect page data. The fresh
   worktree does not inherit gitignored files. Not a code change; verification only.
 
+
+---
+
+# Rework (post-review) — supersedes the deferral/blocker entries above
+
+## Landing scroll-scrub: RESTORED (supersedes "deferred" / "static" entries)
+- **Change:** The `#assemble` section is now the faithful 260vh sticky scroll-scrub
+  from the mockup. Five source fragments start scattered (per-fragment
+  `data-x/data-y/data-r` vw/vh/deg offsets), and converge, scale to 0.72, rotate to
+  0, and fade out into the assembled brief (which fades + scales 0.92 -> 1) as the
+  stage scrolls. The `layout()` math is ported verbatim into
+  `components/marketing/LandingMotion.tsx` (rAF-throttled, reduced-motion aware).
+- **Why:** The earlier static flex grid was the root of the "scattered / animations
+  not sitting right" feedback. This restores the signature effect.
+
+## Landing: `overflow-x: clip` instead of `hidden` (sticky-breaking bug fixed)
+- **Bug:** `.lp { overflow-x: hidden }` turns `.lp` into a scroll container, which
+  silently breaks `position: sticky` on the scroll-scrub stage inside it (the sticky
+  element measured `top: -380` instead of pinning at 0 — header vanished, fragments
+  sat high).
+- **Fix:** `overflow-x: clip` clips the hero glow + fragment vw offsets WITHOUT
+  creating a scroll container, so sticky pins correctly. Verified the stage pins at
+  `top: 0` and fragments converge into the brief mid-scroll.
+
+## distinct_sources: RESOLVED IN CODE (supersedes the "discovered blocker" entry)
+- **Change:** `lib/retrieval/search.ts#userSources()` now wraps the
+  `distinct_sources` RPC and falls back to a client-side distinct over
+  `context_item` when the function is absent (migration 0005 not applied), logging a
+  one-line warning. Broad-intent retrieval (daily_briefing / company_summary /
+  cross_source) and therefore `/api/today` and broad `/api/answer` now return 200
+  regardless of migration state. Verified: `/api/today` returns grounded cards.
+- **Note:** Applying migration 0005 still gives the indexed fast-path; the fallback
+  only removes the hard dependency.
+
+## Search abort/loading race: FIXED (Greptile P1)
+- **Change:** In `app/(app)/search/page.tsx` the `finally` now guards
+  `if (!controller.signal.aborted) setLoading(false)`, so a request superseded by a
+  newer keystroke no longer flashes the spinner off while the replacement fetch is
+  still running. Added a visible error state (the previous silent empty-on-failure
+  was a shortcut).
+
+## Other cleanup this pass
+- Re-added `:focus-visible` (landing) and `scroll-behavior: smooth`
+  (`app/globals.css`, with a reduced-motion override) that the first pass dropped.
+- Waveform now uses the mockup's exact organic delay sequence
+  `[0,.1,.2,.3,.15,.25,.05,.35,.2,.1]` instead of a repeating 4-bar pattern.
+- Reveal hydration guard: `<noscript>` fallback in `app/(marketing)/layout.tsx`
+  forces reveals visible and the brief assembled if JS never runs (content is never
+  permanently hidden).
+- Ask: added an animated typing indicator + streaming caret beyond the static
+  "Thinking..." so a slow first token reads as active.
+
+## Still a documented limitation (acceptable)
+- **Today badge** remains a sessionStorage handoff from the Today page to the
+  sidebar: it avoids a second (LLM-backed) retrieval just to count cards, but it is
+  tab-local and only refreshes after the Today screen loads. Fixing cross-tab
+  freshness would need a shared store or a cheap count endpoint; deferred as low
+  value versus its cost.
+- **Sidebar source dots** poll `/api/connections` and fail quietly (keep last
+  state) by design: a transient poll error should not flash an error in the chrome.
