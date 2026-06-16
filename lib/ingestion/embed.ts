@@ -4,6 +4,7 @@
 
 import { embed, embedMany } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
+import { aiTelemetry } from '../observability/langfuse'
 
 function requireEnv(name: string): string {
   const v = process.env[name]
@@ -21,13 +22,21 @@ function embeddingModel() {
 }
 
 export async function embedText(text: string): Promise<number[]> {
-  const { embedding } = await embed({ model: embeddingModel(), value: text })
+  const { embedding } = await embed({
+    model: embeddingModel(),
+    value: text,
+    experimental_telemetry: aiTelemetry('embed-text'),
+  })
   return embedding
 }
 
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return []
-  const { embeddings } = await embedMany({ model: embeddingModel(), values: texts })
+  const { embeddings } = await embedMany({
+    model: embeddingModel(),
+    values: texts,
+    experimental_telemetry: aiTelemetry('embed-texts', { batchSize: texts.length }),
+  })
   return embeddings
 }
 

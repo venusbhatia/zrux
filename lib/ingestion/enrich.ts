@@ -6,6 +6,7 @@
 
 import { generateText } from 'ai'
 import { chatModel, FALLBACK_MODEL, withRetry } from '../llm/gateway'
+import { aiTelemetry } from '../observability/langfuse'
 import type { RawItem } from '../connectors/types'
 
 // Sources/types whose items are short + structured: provenance is enough.
@@ -33,6 +34,7 @@ async function gloss(provenance: string, chunk: string): Promise<string | null> 
         system: GLOSS_SYSTEM,
         prompt: `${provenance}\n\n${chunk.slice(0, 2000)}`,
         temperature: 0.2,
+        experimental_telemetry: aiTelemetry('enrich-gloss'),
       }),
     )
     return text.trim() || null

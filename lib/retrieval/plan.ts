@@ -4,6 +4,7 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { chatModel, withRetry } from '../llm/gateway'
+import { aiTelemetry } from '../observability/langfuse'
 import type { RetrievalPlan } from './types'
 
 const planSchema = z.object({
@@ -50,6 +51,7 @@ export async function planQuery(question: string, now: Date = new Date()): Promi
       schema: planSchema,
       system: PLAN_SYSTEM,
       prompt: `Current time: ${now.toISOString()}\n\nFounder question: ${question}`,
+      experimental_telemetry: aiTelemetry('plan-query'),
     }),
   )
   return object
