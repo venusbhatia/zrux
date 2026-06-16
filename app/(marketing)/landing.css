@@ -1,7 +1,7 @@
 /* Landing styles ported from Zrux Landing.html. Scoped under .lp so these
    semantic class names never leak into the Tailwind-styled app. The 260vh
    scroll-scrub assembly was replaced with a static assembled layout (see
-   phase6-trade-offs.md); all other motion (glow, waveform, reveal) is preserved. */
+   docs/phase6-trade-offs.md); all other motion (glow, waveform, reveal) is preserved. */
 
 .lp {
   --lp-bg: #ffffff;

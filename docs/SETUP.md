@@ -1,4 +1,4 @@
-# SETUP.md - wiring credentials before Phase 1
+# docs/SETUP.md - wiring credentials before Phase 1
 
 Fill `.env.local` (already created, gitignored) and run the steps below. Keys are
 grouped by what they unblock, so you can verify the spine before wiring every
@@ -30,7 +30,7 @@ pnpm exec supabase db push
 pnpm db:types
 ```
 
-Sanity check the acceptance gates from spec.md Phase 0:
+Sanity check the acceptance gates from docs/spec.md Phase 0:
 
 ```bash
 # hybrid_search returns empty without error (use the SQL editor or psql on DATABASE_URL):
@@ -56,5 +56,5 @@ circuit breaker), `DEEPGRAM_API_KEY` (audio), `SUPERMEMORY_API_KEY` (Layer 3),
 ## Note on Composio OAuth for reviewers
 
 Confirm Composio brokers Google consent through its own verified app (open risk
-in spec.md §4). If not, add reviewers as OAuth test users and note it in the
+in docs/spec.md §4). If not, add reviewers as OAuth test users and note it in the
 README.

@@ -1,8 +1,8 @@
-# trade-offs.md - decisions made during the build
+# docs/trade-offs.md - decisions made during the build
 
-Running log of trade-offs taken while implementing `spec.md`. Each entry: what
+Running log of trade-offs taken while implementing `docs/spec.md`. Each entry: what
 was decided, why, and what it costs. This complements (does not replace) the
-"Tradeoffs and decisions" section of `Architecture.md`, which covers the
+"Tradeoffs and decisions" section of `docs/Architecture.md`, which covers the
 *design-time* choices. This file records *build-time* choices, especially where
 the spec or the two design docs left something open or in conflict.
 
@@ -13,7 +13,7 @@ the spec or the two design docs left something open or in conflict.
 ### T0.1 - `edge` uses `subject_id`/`object_id`, not `from_id`/`to_id`
 
 **Conflict.** `CLAUDE.md`'s schema defines the edge endpoints as `from_id` /
-`to_id`. `Architecture.md` §6.2 (the design reference) defines them as
+`to_id`. `docs/Architecture.md` §6.2 (the design reference) defines them as
 `subject_id` / `object_id`, and its recursive-CTE traversal example, its indexes,
 and the triple-extraction output shape (`{subject, relation, object}`) all use the
 subject/object naming.
@@ -21,7 +21,7 @@ subject/object naming.
 **Decision.** Use `subject_id` / `object_id`.
 
 **Why.** The spec's tie-breaker rule is "where this file and the design docs
-agree, the design docs are the reference." Architecture.md is internally
+agree, the design docs are the reference." docs/Architecture.md is internally
 consistent on subject/object across schema, indexes, and traversal; CLAUDE.md's
 `from_id/to_id` appears only in the one schema block. Aligning the column names
 with the triple-extraction vocabulary also removes a translation layer in
@@ -33,9 +33,9 @@ names than the migration. Mitigated by this note and a comment in
 
 ### T0.2 - `entity` keeps first-class `email` and `domain` columns
 
-**Conflict.** `Architecture.md` §6.2's `entity` SQL has only `name` + `aliases`
+**Conflict.** `docs/Architecture.md` §6.2's `entity` SQL has only `name` + `aliases`
 (unique on `user_id, type, name`) with no `email`/`domain`. But the
-entity-resolution rules in *both* docs (Architecture.md §6.3, CLAUDE.md
+entity-resolution rules in *both* docs (docs/Architecture.md §6.3, CLAUDE.md
 "Entity resolution rules") say email is the canonical key and companies resolve
 on name + domain. CLAUDE.md's schema block does include `email`/`domain`.
 
@@ -44,7 +44,7 @@ where email is not null`; fall back to unique on `(user_id, type, name) where
 email is null` so exact-name re-extraction does not fragment the graph.
 
 **Why.** Resolution rule #1 ("match on email first, always") is impossible
-without an email column. Architecture.md's prose mandates the behavior its own
+without an email column. docs/Architecture.md's prose mandates the behavior its own
 SQL cannot support; CLAUDE.md's schema is the consistent one here, so it wins on
 this specific field.
 
@@ -116,7 +116,7 @@ needs network; if unavailable the scaffold stands but is not yet runnable.
 ### T1.1 - `status` and `type` filters are honored at synthesis, not in SQL
 
 **Context.** The `RetrievalPlan` produces `status` (e.g. "blocked") and `type`,
-but the `hybrid_search()` signature (fixed in CLAUDE.md / Architecture.md §6.4)
+but the `hybrid_search()` signature (fixed in CLAUDE.md / docs/Architecture.md §6.4)
 only filters by `user_id`, `sources`, and time. There is no `status`/`type`
 parameter.
 
@@ -196,7 +196,7 @@ unnecessary. Tunable later (e.g. compare against total per-source counts).
 
 ### T1.6 - Trigger.dev v4, not v3 (CLAUDE.md deviation)
 
-**Conflict.** CLAUDE.md and Architecture.md specify Trigger.dev v3 and list a
+**Conflict.** CLAUDE.md and docs/Architecture.md specify Trigger.dev v3 and list a
 `TRIGGER_PROJECT_ID` env var.
 
 **Decision.** Build on Trigger.dev **v4** (`@trigger.dev/sdk@4.x`).
@@ -272,7 +272,7 @@ like the rest.
 one-sentence LLM gloss (§9.1) only runs when `ENRICH_GLOSS=true`.
 
 **Why.** A noisy 90-day Gmail can be thousands of items; a per-chunk LLM call is
-the dominant ingest cost (open risk in spec.md §4). Off by default keeps the
+the dominant ingest cost (open risk in docs/spec.md §4). Off by default keeps the
 first real ingest cheap and fast; flip on per tenant when quality needs it.
 
 **Cost.** Without the gloss, isolated chunks have slightly less standalone

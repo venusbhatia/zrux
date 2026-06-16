@@ -1,6 +1,6 @@
 -- 0001_init.sql
 -- zrux Layer 1 (context engine) + Layer 2 (relationship graph) schema.
--- Mirrors CLAUDE.md "Database schema" and Architecture.md §6.
+-- Mirrors CLAUDE.md "Database schema" and docs/Architecture.md §6.
 -- Hash-partitioned context_chunk by user_id from day one (designed in, free at this scale).
 
 -- ----------------------------------------------------------------------------
@@ -76,7 +76,7 @@ create index context_chunk_user_source_updated_idx
 -- Layer 2: entity (relationship graph nodes)
 -- Note: email/domain are first-class here (CLAUDE.md schema). The entity-
 -- resolution rules in both docs canonicalize on email first, so the column is
--- required even though Architecture.md §6.2's SQL omits it. See trade-offs.md.
+-- required even though docs/Architecture.md §6.2's SQL omits it. See docs/trade-offs.md.
 -- ----------------------------------------------------------------------------
 create table entity (
   id         uuid primary key default gen_random_uuid(),
@@ -100,8 +100,8 @@ create index entity_name_trgm_idx on entity using gin (name gin_trgm_ops);
 
 -- ----------------------------------------------------------------------------
 -- Layer 2: edge (typed, append-only relationships)
--- Uses subject_id/object_id (Architecture.md §6.2) to mirror triple extraction
--- {subject, relation, object} and the recursive-CTE traversal. See trade-offs.md.
+-- Uses subject_id/object_id (docs/Architecture.md §6.2) to mirror triple extraction
+-- {subject, relation, object} and the recursive-CTE traversal. See docs/trade-offs.md.
 -- ----------------------------------------------------------------------------
 create table edge (
   id           uuid primary key default gen_random_uuid(),
