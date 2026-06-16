@@ -79,9 +79,16 @@ function OnboardingInner() {
         setConnecting(null)
         return
       }
-      const { redirectUrl } = (await res.json()) as { redirectUrl?: string }
-      if (redirectUrl) {
-        window.location.href = redirectUrl
+      const data = (await res.json()) as { redirectUrl?: string; alreadyConnected?: boolean }
+      if (data.redirectUrl) {
+        window.location.href = data.redirectUrl
+        return
+      }
+      if (data.alreadyConnected) {
+        // Already linked in Composio; the server reconciled the row and kicked
+        // the load. The 3s poll will flip this source to Indexing/Ready shortly.
+        setNotice('Already connected. Indexing has started.')
+        setConnecting(null)
         return
       }
       setNotice('No redirect returned by the connector.')

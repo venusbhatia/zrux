@@ -8,9 +8,41 @@ import { captureError } from '@/lib/observability/report'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { composio, authConfigId } from '@/lib/connectors/composio'
 import { isConnectable } from '@/lib/connectors/registry'
+import type { SourceName } from '@/lib/connectors/types'
 import { createServiceClient } from '@/lib/db/supabase'
+import { enqueueLoad } from '@/lib/ingestion/enqueue'
 
 export const runtime = 'nodejs'
+
+// The user already has an ACTIVE Composio account for this source (link() refused
+// a second one), but our source_connection row may be missing or stale. Pull the
+// live ACTIVE account, mark the row active, and enqueue the first load so the
+// onboarding poll and ingestion proceed exactly as they would after a fresh OAuth
+// callback. Returns false if no ACTIVE account is found (caller surfaces 502).
+async function reconcileActive(userId: string, source: SourceName): Promise<boolean> {
+  const list = (await composio().connectedAccounts.list({
+    userIds: [userId],
+    authConfigIds: [authConfigId(source)],
+    statuses: ['ACTIVE'],
+  })) as { items?: Array<{ id: string; status?: string }> }
+  const active = list.items?.find((i) => (i.status ?? '').toUpperCase() === 'ACTIVE')
+  if (!active) return false
+
+  const db = createServiceClient()
+  const { error } = await db.from('source_connection').upsert(
+    {
+      user_id: userId,
+      source,
+      connected_account_id: active.id,
+      status: 'active',
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,source' },
+  )
+  if (error) throw new Error(error.message)
+  await enqueueLoad(userId, source)
+  return true
+}
 
 export async function POST(
   req: NextRequest,
@@ -58,11 +90,19 @@ export async function POST(
     })
   } catch (err) {
     // link() refuses a second account on the same auth config (allowMultiple is
-    // off): the user is already connected. Treat as success so re-clicking
-    // Connect never surfaces the generic error; the callback / poll already keep
-    // the source row in sync.
+    // off): the user already has an ACTIVE Composio connection. Reconcile it into
+    // source_connection and enqueue the load (the link() throw means the upsert
+    // above never ran, so without this the row can be missing and the OAuth
+    // callback, which only finalizes 'initiated' rows, would never pick it up).
     if (err instanceof ComposioMultipleConnectedAccountsError) {
-      return Response.json({ alreadyConnected: true })
+      try {
+        if (await reconcileActive(userId, source)) {
+          return Response.json({ alreadyConnected: true })
+        }
+      } catch (reconcileErr) {
+        captureError('connect', reconcileErr, { userId, source, stage: 'reconcile' })
+        return new Response('Failed to reconcile existing connection', { status: 502 })
+      }
     }
     captureError('connect', err, { userId, source })
     return new Response('Failed to start connection', { status: 502 })
