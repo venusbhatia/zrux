@@ -41,21 +41,29 @@ function OnboardingInner() {
 
   useEffect(() => {
     let alive = true
+    let id: ReturnType<typeof setInterval> | undefined
     async function poll() {
       try {
         const res = await fetch('/api/connections')
         if (!res.ok) return
         const json = (await res.json()) as { connections: Connection[] }
-        if (alive) setConnections(json.connections)
+        if (!alive) return
+        setConnections(json.connections)
+        // First items have landed: the unlock is available, so stop the fast
+        // 3s poll. Status keeps refreshing on the user's next navigation.
+        if (json.connections.some((c) => c.itemCount > 0) && id) {
+          clearInterval(id)
+          id = undefined
+        }
       } catch {
         // transient; keep last state
       }
     }
     void poll()
-    const id = setInterval(poll, 3000)
+    id = setInterval(poll, 3000)
     return () => {
       alive = false
-      clearInterval(id)
+      if (id) clearInterval(id)
     }
   }, [])
 

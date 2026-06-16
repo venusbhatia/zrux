@@ -10,9 +10,23 @@ import { CardSkeletonList } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import type { TodayResponse } from '@/lib/api/today-schema'
 
+function timeGreeting(now: Date): string {
+  const h = now.getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
 export default function TodayPage() {
   const [data, setData] = useState<TodayResponse | null>(null)
   const [error, setError] = useState(false)
+  // Default matches SSR; corrected to the visitor's local time on mount so server
+  // timezone never causes a hydration mismatch.
+  const [greeting, setGreeting] = useState('Good morning')
+
+  useEffect(() => {
+    setGreeting(timeGreeting(new Date()))
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -42,7 +56,7 @@ export default function TodayPage() {
     <section className="mx-auto max-w-today">
       <div className="mb-[18px]">
         <h2 className="mb-[5px] text-[26px] font-bold tracking-[-.02em]">
-          Good morning. Here&apos;s what needs you.
+          {greeting}. Here&apos;s what needs you.
         </h2>
         <p className="text-[15px] text-muted">
           Pulled from across your connected tools and ranked by what is most time-sensitive.
@@ -68,7 +82,7 @@ export default function TodayPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {data.cards.map((card, i) => (
-            <BriefCard key={i} card={card} />
+            <BriefCard key={card.refs[0]?.item_id ?? i} card={card} />
           ))}
         </div>
       )}
