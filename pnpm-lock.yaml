@@ -50,6 +50,9 @@ importers:
       react-dom:
         specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
+      supermemory:
+        specifier: ^4.24.12
+        version: 4.24.12
       uuid:
         specifier: ^14.0.0
         version: 14.0.0
@@ -2079,6 +2082,10 @@ packages:
 
   supabase@2.106.0:
     resolution: {integrity: sha512-jV0PJi5LqXUMZ4kriRLvST3DX1YDhrxOgnFJLOn6oUw3KQEFJPXhA60yLQ9aWG1E1uZCp4vUJwSuSGq3HPfaSQ==}
+    hasBin: true
+
+  supermemory@4.24.12:
+    resolution: {integrity: sha512-xAFextuqk4JuoW33jJaFGqT1oMppN2IgfWUrV18Fv3qAAZ6M1SR1tb+7EBq8vrEQIx4iY2MQh5p+qnfL6lI8Yw==}
     hasBin: true
 
   supports-color@7.2.0:
@@ -4339,6 +4346,8 @@ snapshots:
       '@supabase/cli-linux-x64-musl': 2.106.0
       '@supabase/cli-windows-arm64': 2.106.0
       '@supabase/cli-windows-x64': 2.106.0
+
+  supermemory@4.24.12: {}
 
   supports-color@7.2.0:
     dependencies:
