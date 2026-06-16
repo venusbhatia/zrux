@@ -106,15 +106,13 @@ export class RedisSemanticCache implements SemanticCache {
       await this.redis.sadd(indexKey(userId), id)
       await this.redis.expire(indexKey(userId), TTL_SECONDS)
 
-      // Bound a noisy tenant's index: trim back to MAX_INDEX_ENTRIES by dropping
-      // random members (their per-entry keys age out on their own TTL).
+      // Bound a noisy tenant's index: trim back to MAX_INDEX_ENTRIES. SPOP removes
+      // the surplus ids in a single atomic op, so a concurrent SADD cannot have a
+      // freshly written id swept out by a read-modify-write race. Popped ids leave
+      // the index; their per-entry keys age out on their own TTL.
       const count = await this.redis.scard(indexKey(userId))
       if (count > MAX_INDEX_ENTRIES) {
-        const keep = await this.redis.srandmember<string[]>(indexKey(userId), MAX_INDEX_ENTRIES)
-        const keepSet = new Set(keep ?? [])
-        const all = await this.redis.smembers(indexKey(userId))
-        const drop = all.filter((m) => !keepSet.has(m))
-        if (drop.length > 0) await this.redis.srem(indexKey(userId), ...drop)
+        await this.redis.spop(indexKey(userId), count - MAX_INDEX_ENTRIES)
       }
     } catch (err) {
       console.warn('[cache] set failed (fail-open):', (err as Error).message)

@@ -19,6 +19,14 @@ export function rerankEnabled(): boolean {
   return Boolean(process.env.COHERE_API_KEY) && process.env.RERANK_ENABLED !== 'false'
 }
 
+// Lazily-built singleton: reuse one client (and its connection pool) across
+// requests instead of constructing a new CohereClient on every synthesis.
+let cohereClient: CohereClient | null = null
+function getCohereClient(): CohereClient {
+  if (!cohereClient) cohereClient = new CohereClient({ token: process.env.COHERE_API_KEY! })
+  return cohereClient
+}
+
 // Reranks hits by relevance to the query and returns them in Cohere's order.
 // Disabled or empty input: returns hits unchanged with rerank_score 0.
 export async function rerankCandidates(query: string, hits: SearchHit[]): Promise<RankedHit[]> {
@@ -27,8 +35,7 @@ export async function rerankCandidates(query: string, hits: SearchHit[]): Promis
   }
 
   try {
-    const client = new CohereClient({ token: process.env.COHERE_API_KEY! })
-    const response = await client.v2.rerank({
+    const response = await getCohereClient().v2.rerank({
       model: 'rerank-v3.5',
       query,
       documents: hits.map((h) => h.content),

@@ -4,15 +4,19 @@ import { RedisSemanticCache, semanticCache, type SemanticCacheEntry } from './se
 
 // A minimal in-memory fake of the Upstash Redis surface the cache uses. Stored
 // values are kept as parsed objects (the real client auto-(de)serializes JSON).
-function fakeRedis(entries: Record<string, SemanticCacheEntry>, ids: string[]) {
+function fakeRedis(
+  entries: Record<string, SemanticCacheEntry>,
+  ids: string[],
+  cardOverride?: number,
+) {
   return {
     smembers: vi.fn(async () => [...ids]),
     mget: vi.fn(async (...keys: string[]) => keys.map((k) => entries[k] ?? null)),
     set: vi.fn(async () => 'OK'),
     sadd: vi.fn(async () => 1),
     expire: vi.fn(async () => 1),
-    scard: vi.fn(async () => ids.length),
-    srandmember: vi.fn(async () => ids),
+    scard: vi.fn(async () => cardOverride ?? ids.length),
+    spop: vi.fn(async () => ids),
     srem: vi.fn(async () => 1),
   } as unknown as Redis
 }
@@ -60,6 +64,22 @@ describe('RedisSemanticCache.set', () => {
     expect(redis.set).toHaveBeenCalledTimes(1)
     expect(redis.sadd).toHaveBeenCalledTimes(1)
     expect(redis.expire).toHaveBeenCalledTimes(1)
+  })
+
+  it('atomically trims the index with spop when it exceeds the cap', async () => {
+    // scard reports 205 (> MAX_INDEX_ENTRIES 200); expect one spop of the surplus.
+    const redis = fakeRedis({}, [], 205)
+    const cache = new RedisSemanticCache(redis)
+    await cache.set('u1', [1, 0, 0], 'answer')
+    expect(redis.spop).toHaveBeenCalledTimes(1)
+    expect(redis.spop).toHaveBeenCalledWith(expect.any(String), 5)
+  })
+
+  it('does not trim when under the cap', async () => {
+    const redis = fakeRedis({}, [], 10)
+    const cache = new RedisSemanticCache(redis)
+    await cache.set('u1', [1, 0, 0], 'answer')
+    expect(redis.spop).not.toHaveBeenCalled()
   })
 
   it('fails open (does not throw) when Redis throws', async () => {

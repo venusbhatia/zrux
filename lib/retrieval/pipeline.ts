@@ -34,8 +34,13 @@ export async function retrieve(
   precomputedEmbedding?: number[],
 ): Promise<RetrievalResult> {
   const plan = await planQuery(question) // Stage 1 (AI SDK span: plan-query)
-  // Stage 1b: reuse the route's precomputed embedding when present (the cache
-  // check already embedded the raw question), else embed the cleaned query.
+  // Stage 1b: reuse the route's precomputed embedding when present, else embed the
+  // cleaned query. TRADE-OFF: the route always passes the RAW-question embedding
+  // (it already computed it for the Stage 0 cache check), so in production vector
+  // search runs on the raw question, not on plan.semantic_query. This saves one
+  // embedding call per answer; the keyword channel still uses plan.keyword_terms.
+  // Eval-validated (recall@3 0.935). Re-embedding semantic_query here is the
+  // quality-max alternative if a recall regression ever shows up.
   const queryEmbedding = precomputedEmbedding ?? (await embedText(plan.semantic_query || question))
 
   // Stage 2 search -> 2b rerank -> 2c rail runs as a sequential sub-chain; graph
@@ -59,14 +64,18 @@ export async function retrieve(
         'cohere-rerank',
         { enabled: rerankEnabled(), inputCount: raw.hits.length },
         () => rerankCandidates(plan.semantic_query, raw.hits),
-        (r) => ({ outputCount: r.length }),
+        (r) => ({ outputCount: r.length, applied: r.some((h) => h.rerank_score > 0) }),
       )
+      // Reflect whether Cohere ACTUALLY reranked, not just whether it is configured:
+      // rerankCandidates degrades to all-zero scores on a Cohere error, so config
+      // alone would report rerankApplied:true for a silently failed rerank.
+      const rerankApplied = ranked.some((h) => h.rerank_score > 0)
       const filtered = applyScoreFilter(ranked)
       return {
         hits: filtered,
         relaxed: raw.relaxed,
         diversify: raw.diversify,
-        rerankApplied: rerankEnabled(),
+        rerankApplied,
         railDropped: ranked.length - filtered.length,
       }
     })(),

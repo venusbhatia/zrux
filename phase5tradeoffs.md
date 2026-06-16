@@ -66,7 +66,10 @@ the alternative not taken, and why. Companion to `trade-offs.md` (whole-system),
   because `streamText` surfaces errors as the stream drains, not at call time. So the
   route pre-checks the breaker with `assertGatewayUp()` (throws `GatewayDownError`
   when OPEN → degrade), and the stream reports its own outcome back to the breaker via
-  `noteGatewaySuccess` / `noteGatewayFailure`.
+  `noteGatewaySuccess` / `noteGatewayFailure`. `assertGatewayUp` persists the
+  `OPEN → HALF_OPEN` transition when the cooldown elapses (mirroring
+  `withCircuitBreaker`), so a failed streaming probe correctly re-OPENs rather than
+  resetting a stale window to CLOSED.
 - **Alternative:** Wrap `streamText` in the breaker + mid-stream fallback to the
   secondary model.
 - **Why:** Mid-stream model swap means buffering or restarting a partially-sent

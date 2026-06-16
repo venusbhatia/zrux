@@ -27,11 +27,13 @@ import {
   GatewayDownError,
   breakerEnabled,
   assertGatewayUp,
+  noteGatewayFailure,
 } from './gateway'
 
 const CB_KEY = 'cb:gateway'
 const THRESHOLD = 5
 const COOLDOWN_MS = 30000
+const WINDOW_MS = 60000
 
 function http(status: number): Error & { status: number } {
   return Object.assign(new Error(`http ${status}`), { status })
@@ -188,5 +190,32 @@ describe('assertGatewayUp', () => {
 
   it('resolves when the breaker is CLOSED', async () => {
     await expect(assertGatewayUp()).resolves.toBeUndefined()
+  })
+
+  it('transitions OPEN -> HALF_OPEN (persisted) once the cooldown has elapsed', async () => {
+    h.store.set(CB_KEY, {
+      state: 'open',
+      failCount: THRESHOLD,
+      windowStartMs: Date.now() - WINDOW_MS - 5000,
+      openUntilMs: Date.now() - 1000, // cooldown elapsed
+    })
+    await expect(assertGatewayUp()).resolves.toBeUndefined()
+    expect(state().state).toBe('half-open')
+  })
+
+  it('re-OPENs (does not silently CLOSE) when a streaming probe fails after a stale window', async () => {
+    // Regression: failures spread beyond WINDOW_MS leave an expired window. If the
+    // probe were not marked HALF_OPEN, applyFailure would reset the window to a
+    // single failure and CLOSE the breaker. The persisted HALF_OPEN must re-open it.
+    h.store.set(CB_KEY, {
+      state: 'open',
+      failCount: THRESHOLD,
+      windowStartMs: Date.now() - WINDOW_MS - 5000,
+      openUntilMs: Date.now() - 1000,
+    })
+    await assertGatewayUp() // probe allowed -> persists half-open
+    await noteGatewayFailure(http(503)) // probe fails
+    expect(state().state).toBe('open')
+    expect(Number(state().openUntilMs)).toBeGreaterThan(Date.now())
   })
 })
