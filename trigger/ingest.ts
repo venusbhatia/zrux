@@ -14,7 +14,10 @@ import { flushTracing, initTracing, tracingEnabled } from '../lib/observability/
 interface IngestPayload {
   userId: string
   source: SourceName
-  mode: 'load' | 'poll'
+  mode: 'load' | 'poll' | 'event'
+  // Event-mode only: the inner provider event object (HMAC-verified upstream in
+  // the webhook route). Fed to connector.handleEvent for near-real-time ingest.
+  event?: unknown
 }
 
 async function runIngest(payload: IngestPayload) {
@@ -23,23 +26,40 @@ async function runIngest(payload: IngestPayload) {
   const lookbackDays = Number(process.env.INGEST_LOOKBACK_DAYS ?? 90)
   const ctx = { userId, source, lookbackDays, cursor: null }
 
-  const stream =
-    mode === 'poll'
-      ? connector.poll(
-          ctx,
-          (await getSyncState(userId, source))?.lastSuccessfulSyncAt ??
-            new Date(Date.now() - lookbackDays * 86400_000),
-        )
-      : connector.load(ctx)
+  let stream: AsyncIterable<import('../lib/connectors/types').RawItem>
+  if (mode === 'event') {
+    if (!connector.handleEvent) {
+      throw new Error(`connector ${source} does not support event mode`)
+    }
+    stream = connector.handleEvent(payload.event)
+  } else if (mode === 'poll') {
+    stream = connector.poll(
+      ctx,
+      (await getSyncState(userId, source))?.lastSuccessfulSyncAt ??
+        new Date(Date.now() - lookbackDays * 86400_000),
+    )
+  } else {
+    stream = connector.load(ctx)
+  }
 
-  const stats = await ingestItems(userId, source, stream)
+  // Event-mode is a single item and must NOT advance the poll cursor, or it
+  // would skip the scheduled-poll window between events.
+  const stats = await ingestItems(userId, source, stream, {
+    updateSyncState: mode !== 'event',
+  })
   return { userId, source, mode, ...stats }
 }
 
 export const ingestTask = task({
   id: 'ingest-source',
   maxDuration: 600,
-  retry: { maxAttempts: 5, factor: 2, minTimeoutInMs: 1000, maxTimeoutInMs: 30_000, randomize: true },
+  retry: {
+    maxAttempts: 5,
+    factor: 2,
+    minTimeoutInMs: 1000,
+    maxTimeoutInMs: 30_000,
+    randomize: true,
+  },
   run: async (payload: IngestPayload) => {
     // This worker runs outside Next.js, so the instrumentation hook never fires -
     // set up the isolated Langfuse provider here. The enrich/embed generations

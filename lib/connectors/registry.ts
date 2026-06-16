@@ -1,15 +1,19 @@
 // Source -> Connector registry. Phase 1 ships Gmail, Calendar, Linear; Phase 2
-// adds Slack + one of Notion/GitHub/Sentry against the same contract.
+// adds Slack + Notion against the same contract.
 
 import type { Connector, SourceName } from './types'
 import { gmailConnector } from './gmail'
 import { calendarConnector } from './calendar'
 import { linearConnector } from './linear'
+import { slackConnector } from './slack'
+import { notionConnector } from './notion'
 
 const REGISTRY: Partial<Record<SourceName, Connector>> = {
   gmail: gmailConnector,
   calendar: calendarConnector,
   linear: linearConnector,
+  slack: slackConnector,
+  notion: notionConnector,
 }
 
 export function getConnector(source: SourceName): Connector {
