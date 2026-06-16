@@ -14,7 +14,10 @@ import { chatModel, withRetry } from '@/lib/llm/gateway'
 import { aiTelemetry } from '@/lib/observability/langfuse'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { todayResponseSchema, type TodayCard, type TodayResponse } from '@/lib/api/today-schema'
+import { z } from 'zod'
 import type { Citation } from '@/lib/retrieval/types'
+
+type ModelCard = z.infer<typeof todayResponseSchema>['cards'][number]
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -27,23 +30,23 @@ Rules:
 - Use only the CONTEXT. Never invent people, numbers, dates, statuses, or outcomes.
 - Produce up to six cards, most important first. Fewer is fine. Skip anything routine.
 - Each card: a specific title, a short status tag with the right tone, one or two grounded sentences, and refs.
-- refs[].item_id MUST be a bracketed [n] item id from the CONTEXT. Never cite an id that is not there.
+- refs[].n MUST be the bracketed [n] number of a CONTEXT item. Only use numbers that appear in CONTEXT.
 - Lead with what is at risk, blocking, or time-sensitive.
 - Be concise and confident. Never use em dashes.`
 
-// Keep only refs that point at a real citation, and backfill source/url/label
-// from that citation so the client never trusts a model-supplied URL. Cards left
-// with no valid ref are dropped.
-function groundCards(cards: TodayCard[], citations: Citation[]): TodayCard[] {
-  const byId = new Map(citations.map((c) => [c.item_id, c]))
+// Map each model ref ([n]) to the real citation and backfill item_id/source/url
+// so the client never trusts a model-supplied source or link. Cards left with no
+// valid ref are dropped.
+function groundCards(cards: ModelCard[], citations: Citation[]): TodayCard[] {
+  const byN = new Map(citations.map((c) => [c.n, c]))
   const grounded: TodayCard[] = []
   for (const card of cards) {
     const refs = card.refs
-      .filter((r) => byId.has(r.item_id))
+      .filter((r) => byN.has(r.n))
       .map((r) => {
-        const c = byId.get(r.item_id)!
+        const c = byN.get(r.n)!
         return {
-          item_id: r.item_id,
+          item_id: c.item_id,
           label: r.label?.trim() || c.title || c.source,
           source: c.source,
           url: c.url,

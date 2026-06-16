@@ -97,6 +97,41 @@ alternative not taken, and why. Companion to `trade-offs.md` (whole-system) and
 - **Why:** Tap-to-talk is an explicit stretch (spec D12 / Phase 7). Keeping the
   affordance preserves the mockup without committing the streaming-STT surface.
 
+## Discovered blocker (NOT Phase 6): `distinct_sources` DB function missing
+- **Finding:** During verification, `/api/today` and `/api/answer` return 502 for
+  broad intents (daily_briefing / company_summary / cross_source) because the
+  retrieval path calls the `distinct_sources(p_user_id)` Postgres function, which
+  is defined in `supabase/migrations/0005_distinct_sources.sql` but is NOT applied
+  to the live Supabase instance ("Could not find the function public.distinct_sources
+  in the schema cache").
+- **Scope:** Pre-existing backend/migration-deployment debt, independent of Phase 6.
+  It already broke the flagship demo question ("What should I focus on today?") on
+  `/api/answer` before this phase. Non-broad questions (e.g. "Which tasks are
+  blocked right now?") work end-to-end against real data.
+- **Fix (owner action):** apply migration 0005 (e.g. `pnpm supabase db push`, or run
+  that one `create or replace function` against the DB). The Today grounding fix and
+  all Phase 6 UI are verified correct; once the function exists, Today and the daily
+  briefing work. Not applied here: the auto-mode guard correctly blocked a live-DB
+  migration as outside this UI task's authorized scope.
+
+## Today grounding: model cites by `[n]`, server maps to the real citation
+- **Decision:** The Today `generateObject` schema has the model reference CONTEXT
+  items by their bracketed `[n]` number; the route maps `n` -> the real citation
+  and backfills item_id/source/url.
+- **Why:** The assembled CONTEXT block only exposes `[n]` markers, not item UUIDs,
+  so an earlier "match on item_id" guard dropped every ref and produced empty
+  briefings. Mapping by `n` is what the model can actually see, while keeping the
+  guarantee that a card can never cite a source that was not retrieved.
+
+## Authed-screen verification: via data endpoints, not headless screenshots
+- **Decision:** The four app screens were verified by exercising their backing
+  endpoints against the real canonical tenant (548 items) plus a build + typecheck;
+  only the public landing was screenshotted.
+- **Why:** `middleware.ts` gates the app routes behind a real Google session, which
+  is not reproducible headless. The endpoints (`/api/connections`, `/api/search`,
+  `/api/graph`, `/api/answer`, and the Today grounding path) return correct real
+  data, which is the substantive proof the screens render.
+
 ## Dev verification: copy gitignored `.env.local` into the worktree
 - **Decision:** For local build/dev verification, `.env.local` was copied from the
   main checkout into the worktree (it stays gitignored, never committed).

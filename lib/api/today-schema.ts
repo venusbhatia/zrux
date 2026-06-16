@@ -21,30 +21,49 @@ export const CARD_KINDS = [
   'generic',
 ] as const
 
-export const todayRefSchema = z.object({
-  item_id: z.string().describe('Must be one of the [n] citation item ids in the CONTEXT block.'),
+// What the model fills in: a ref points at a CONTEXT item by its bracketed [n]
+// number (the only id the model can see). The route maps n -> the real citation
+// and backfills item_id/source/url, so the model can never invent a source.
+export const todayModelRefSchema = z.object({
+  n: z.number().int().describe('The bracketed [n] number of the CONTEXT item this draws from.'),
   label: z.string().describe('Short human label for the source, e.g. a person name or ticket id.'),
-  source: z.string().describe('Source system, e.g. gmail. Backfilled server-side.').optional(),
-  url: z.string().nullable().describe('Backfilled server-side; leave null.').optional(),
 })
 
-export const todayCardSchema = z.object({
+export const todayModelCardSchema = z.object({
   kind: z.enum(CARD_KINDS).describe('Drives the card icon tile.'),
   title: z.string().describe('One short, specific line. No trailing punctuation.'),
   tag: z.string().describe('Two or three word status label, e.g. "Revenue at risk", "Due in 2 days".'),
   tagTone: z.enum(TAG_TONES).describe('warn = risk/urgent, blue = info, calm = neutral, green = good, purple = relationship.'),
   body: z.string().describe('One or two sentences of grounded detail. Never use em dashes.'),
-  refs: z.array(todayRefSchema).min(1).describe('The source items this card draws from.'),
+  refs: z.array(todayModelRefSchema).min(1).describe('The CONTEXT items this card draws from, by [n].'),
 })
 
 export const todayResponseSchema = z.object({
-  cards: z.array(todayCardSchema).max(6).describe('Up to six things that need the founder, most important first.'),
+  cards: z
+    .array(todayModelCardSchema)
+    .max(6)
+    .describe('Up to six things that need the founder, most important first.'),
 })
 
 export type TagTone = (typeof TAG_TONES)[number]
 export type CardKind = (typeof CARD_KINDS)[number]
-export type TodayRef = z.infer<typeof todayRefSchema>
-export type TodayCard = z.infer<typeof todayCardSchema>
+
+// The grounded ref the client renders (built server-side from a citation).
+export interface TodayRef {
+  item_id: string
+  label: string
+  source: string
+  url: string | null
+}
+
+export interface TodayCard {
+  kind: CardKind
+  title: string
+  tag: string
+  tagTone: TagTone
+  body: string
+  refs: TodayRef[]
+}
 
 // What GET /api/today actually returns to the client.
 export interface TodayResponse {
