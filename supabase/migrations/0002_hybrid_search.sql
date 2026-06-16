@@ -1,7 +1,7 @@
 -- 0002_hybrid_search.sql
 -- Hybrid retrieval: dense (pgvector) + keyword (tsvector) CTEs, pre-filtered by
 -- tenant/source/time, fused by Reciprocal Rank Fusion, then nudged by a
--- post-fusion recency weight. Verbatim from Architecture.md §6.4 / CLAUDE.md.
+-- post-fusion recency weight. Verbatim from docs/Architecture.md §6.4 / CLAUDE.md.
 --
 -- Index note: because `filtered` is referenced twice it is materialized, so
 -- `vec` does EXACT KNN over the filtered per-tenant set, not an HNSW scan. This

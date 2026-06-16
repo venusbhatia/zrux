@@ -2,8 +2,8 @@
 
 Running log of the trade-offs, shortcuts, and deliberate scope cuts made while
 building Phase 6 (the pixel-faithful UI). Each entry: what was decided, the
-alternative not taken, and why. Companion to `trade-offs.md` (whole-system) and
-`spec.md` §2 (Phase 6 definition).
+alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system) and
+`docs/spec.md` §2 (Phase 6 definition).
 
 ---
 

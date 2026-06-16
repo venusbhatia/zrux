@@ -1,5 +1,5 @@
 // The Connector contract. Every source implements this one interface with four
-// sync modes (CLAUDE.md "The Connector contract", Architecture.md §7.1).
+// sync modes (CLAUDE.md "The Connector contract", docs/Architecture.md §7.1).
 // Composio supplies OAuth + fetch inside load/poll/slim; the contract is ours,
 // so a Nango swap is a one-file change at this seam.
 

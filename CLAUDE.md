@@ -409,8 +409,22 @@ The Traces link shows your AI-assisted dev process. A rich commit history on Git
     migrations/           numbered SQL migration files
   trigger/                Trigger.dev job definitions
   prompts/                .txt or .md files for each of the four prompts
+  scripts/                CLI and verification scripts
+  components/             shared React components
+  types/                  shared type declarations
+  docs/                   all project documentation
+    Architecture.md       full system design reference
+    spec.md               build spec
+    trade-offs.md         decisions and tradeoffs
+    phase4tradeoffs.md    phase 4 (personalization) tradeoffs
+    phase6-trade-offs.md  phase 6 (UI) tradeoffs
+    SETUP.md              local setup guide
+    design/               UI/design handoff (mockups, screenshots)
+    plans/                phase implementation plans
+  .claude/                Claude Code project config
+    settings.json         permissions, hooks, env
+    commands/             custom slash commands (run, test, review)
   CLAUDE.md               this file
-  ARCHITECTURE.md         full system design reference
   README.md               submission README
 ```
 
@@ -475,7 +489,7 @@ Bonus (show these if time):
 
 ## Reference files in this repo
 
-- `ARCHITECTURE.md` : full system design, schemas, diagrams, prompts, scaling decisions
+- `docs/Architecture.md` : full system design, schemas, diagrams, prompts, scaling decisions
 - `CLAUDE.md` : this file, standing orders for every session
 - `README.md` : submission README (write last)
 - `index.html` : zrux landing page (landing page only, not the app UI)

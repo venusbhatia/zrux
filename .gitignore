@@ -41,8 +41,10 @@ Assignment.pdf
 # sentry source-map upload token
 .env.sentry-build-plugin
 
-# Claude Code local worktrees/jobs
-.claude/
+# Claude Code local artifacts (worktrees, skills, jobs) — keep project config tracked
+.claude/*
+!.claude/settings.json
+!.claude/commands/
 
 # local verification artifacts
 .playwright-mcp/

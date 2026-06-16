@@ -1,8 +1,8 @@
-# spec.md — zrux Implementation Spec (Sequenced Build Plan)
+# docs/spec.md — zrux Implementation Spec (Sequenced Build Plan)
 
 This is the **execution plan**: what to build, in what order, where each piece lives, and how to know a phase is done. It does not restate the system design.
 
-- **Why we build it / product thesis / tradeoffs** → `Architecture.md`
+- **Why we build it / product thesis / tradeoffs** → `docs/Architecture.md`
 - **Standing orders / conventions / schemas / prompts** → `CLAUDE.md`
 - **What to build next and the bar for "done"** → this file
 
@@ -12,7 +12,7 @@ Read all three before a session. Where this file and the design docs agree, the 
 
 ## 0. Decisions Ledger (resolved, binding)
 
-These were decided in the build-kickoff interview and override any looser reading of `CLAUDE.md` / `Architecture.md`.
+These were decided in the build-kickoff interview and override any looser reading of `CLAUDE.md` / `docs/Architecture.md`.
 
 | # | Decision | Resolution | Consequence |
 |---|---|---|---|
@@ -24,7 +24,7 @@ These were decided in the build-kickoff interview and override any looser readin
 | D6 | Keys available | **All groups in hand**: Core (OpenRouter, OpenAI, Supabase), Composio, Quality (Cohere, Deepgram, Upstash), Ops (Trigger.dev, Supermemory, Langfuse) | No piece is forced into a stub for lack of a key. The only limiter is time. |
 | D7 | Initial load window | **Last 90 days, all sources** | Bounds ingest cost and latency; wide enough for "this quarter" questions. Encoded as `INGEST_LOOKBACK_DAYS=90`. |
 | D8 | Onboarding | **Guided stepper** with live per-source indexing progress; unlock Ask/Today as soon as first items land | New screens, built in the existing design system. |
-| D9 | UI fidelity | **Pixel-faithful** recreation of the four mockup screens (Today, Ask, Relationships, Search) + landing; onboarding matches the design system | Source of truth: `frontend-project-handoff-claude-code/project/Zrux App.dc.html` and `Zrux Landing.html`. |
+| D9 | UI fidelity | **Pixel-faithful** recreation of the four mockup screens (Today, Ask, Relationships, Search) + landing; onboarding matches the design system | Source of truth: `docs/design/project/Zrux App.dc.html` and `Zrux Landing.html`. |
 | D10 | Today briefing generation | **Precompute + cache per user** (Trigger.dev, staggered, plus after-ingest), served instantly, manual refresh regenerates | Implements the §11 thundering-herd mitigation for real. |
 | D11 | Telegram | **Stretch only** | In-app proactive briefing ships for everyone; Telegram per-user link + push is wired only if time remains. |
 | D12 | Audio ingestion | **Google Drive audio files** through Deepgram Nova-3 batch (diarized) | No upload UI. Tap-to-talk voice *question input* on Ask is an optional stretch; keep the mic affordance in the UI. |
@@ -53,7 +53,7 @@ The three demo questions (must work, see `CLAUDE.md`):
 
 ## 2. Build Phases
 
-Each phase is **independently shippable**: if the clock stops at the end of any phase, what exists is a coherent working slice, not a half-wired one. Phases roughly map to `Architecture.md §14` but with concrete files and acceptance gates. Cut markers reference D14.
+Each phase is **independently shippable**: if the clock stops at the end of any phase, what exists is a coherent working slice, not a half-wired one. Phases roughly map to `docs/Architecture.md §14` but with concrete files and acceptance gates. Cut markers reference D14.
 
 Branch per phase (`feature/<phase-slug>`); commit and push on every green acceptance gate, per the `CLAUDE.md` git workflow.
 
@@ -69,7 +69,7 @@ Branch per phase (`feature/<phase-slug>`); commit and push on every green accept
 - `lib/db/supabase.ts` — typed Supabase clients (anon + service role, server-only).
 - `lib/db/types.ts` — generated types (`supabase gen types`).
 - `supabase/migrations/0001_init.sql` — `context_item`, `context_chunk` (8 hash partitions), `entity`, `edge`, all indexes, `pg_trgm`, `pgvector`, RLS policies scoped by `user_id`.
-- `supabase/migrations/0002_hybrid_search.sql` — the `hybrid_search()` function verbatim from `Architecture.md §6.4`.
+- `supabase/migrations/0002_hybrid_search.sql` — the `hybrid_search()` function verbatim from `docs/Architecture.md §6.4`.
 - `supabase/migrations/0003_sync_state.sql` — `sync_state(user_id, source, last_successful_sync_at, cursor)` for incremental polling.
 
 **Acceptance**
@@ -179,7 +179,7 @@ Branch per phase (`feature/<phase-slug>`); commit and push on every green accept
 
 ### Phase 5 — Hardening: resilience, cache, observability, eval
 
-**Goal:** the production-grade concerns that a demo hides (`Architecture.md §10–12`).
+**Goal:** the production-grade concerns that a demo hides (`docs/Architecture.md §10–12`).
 
 **Deliverables**
 - `lib/cache/semantic-cache.ts` — Upstash; per-tenant near-hit on query embedding; Stage 0 short-circuit; write-through on synthesis success.
@@ -204,7 +204,7 @@ Branch per phase (`feature/<phase-slug>`); commit and push on every green accept
 
 **Goal:** recreate the four mockup screens faithfully and build the onboarding the mockup lacks (D9, D8).
 
-**Source of truth:** `frontend-project-handoff-claude-code/project/Zrux App.dc.html` (app, 4 screens) and `Zrux Landing.html` (landing). Match visual output; do not copy the prototype's React-in-a-string internals.
+**Source of truth:** `docs/design/project/Zrux App.dc.html` (app, 4 screens) and `Zrux Landing.html` (landing). Match visual output; do not copy the prototype's React-in-a-string internals.
 
 **Deliverables**
 - `app/(app)/layout.tsx` — sidebar (logo, nav with Today badge, CONNECTED sources with live dots, founder footer), top bar with ⌘K search.
@@ -227,7 +227,7 @@ Branch per phase (`feature/<phase-slug>`); commit and push on every green accept
 
 ### Phase 7 — Proactive briefing + Drive audio + Telegram (stretch tail)
 
-**Goal:** the remaining `Architecture.md §13` surfaces, built in D14 reverse-cut order so the riskiest is last.
+**Goal:** the remaining `docs/Architecture.md §13` surfaces, built in D14 reverse-cut order so the riskiest is last.
 
 **Deliverables (build in this order, drop from the bottom if time is short)**
 1. **Proactive in-app briefing** — `trigger/briefing.ts`: per-user, staggered with jitter across a morning window, bounded-concurrency queue, precompute + cache (D10). Powers Today instantly.
