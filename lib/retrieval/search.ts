@@ -30,13 +30,12 @@ interface SearchResult {
 // user_id first (standing order). Used to stratify broad-intent retrieval.
 async function userSources(userId: string): Promise<string[]> {
   const db = createServiceClient()
-  const { data, error } = await db
-    .from('context_item')
-    .select('source')
-    .eq('user_id', userId)
-    .eq('is_deleted', false)
+  // DISTINCT in Postgres (see 0005_distinct_sources.sql): a client-side dedupe of
+  // every context_item row is silently capped by PostgREST max-rows (default
+  // 1000), which could drop an entire source from stratified retrieval.
+  const { data, error } = await db.rpc('distinct_sources', { p_user_id: userId })
   if (error) throw new Error(`userSources failed: ${error.message}`)
-  return [...new Set((data ?? []).map((r) => r.source))]
+  return (data ?? []).map((r) => r.source)
 }
 
 // Merge per-source hit lists, deduping by chunk id and keeping the best score.
@@ -103,7 +102,14 @@ export async function hybridSearch(
           ),
         ),
       )
-      return { hits: mergeHits(perSource), relaxed: false, diversify: true }
+      const merged = mergeHits(perSource)
+      // Only short-circuit when stratified retrieval actually found enough. If the
+      // per-source walk came back thin (e.g. a tight `after` over sparse recent
+      // data), fall through to the standard path so the filter-relax fallback can
+      // still recover with full-corpus retrieval.
+      if (merged.length >= MIN_HITS_BEFORE_RELAX) {
+        return { hits: merged, relaxed: false, diversify: true }
+      }
     }
   }
 
