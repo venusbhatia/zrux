@@ -4,10 +4,12 @@
 // it stays testable outside Trigger.dev.
 
 import { task } from '@trigger.dev/sdk'
+import { propagateAttributes, startActiveObservation } from '@langfuse/tracing'
 import type { SourceName } from '../lib/connectors/types'
 import { getConnector } from '../lib/connectors/registry'
 import { ingestItems } from '../lib/ingestion/run'
 import { getSyncState } from '../lib/db/sync-state'
+import { flushTracing, initTracing, tracingEnabled } from '../lib/observability/langfuse'
 
 interface IngestPayload {
   userId: string
@@ -15,26 +17,42 @@ interface IngestPayload {
   mode: 'load' | 'poll'
 }
 
+async function runIngest(payload: IngestPayload) {
+  const { userId, source, mode } = payload
+  const connector = getConnector(source)
+  const lookbackDays = Number(process.env.INGEST_LOOKBACK_DAYS ?? 90)
+  const ctx = { userId, source, lookbackDays, cursor: null }
+
+  const stream =
+    mode === 'poll'
+      ? connector.poll(
+          ctx,
+          (await getSyncState(userId, source))?.lastSuccessfulSyncAt ??
+            new Date(Date.now() - lookbackDays * 86400_000),
+        )
+      : connector.load(ctx)
+
+  const stats = await ingestItems(userId, source, stream)
+  return { userId, source, mode, ...stats }
+}
+
 export const ingestTask = task({
   id: 'ingest-source',
   maxDuration: 600,
   retry: { maxAttempts: 5, factor: 2, minTimeoutInMs: 1000, maxTimeoutInMs: 30_000, randomize: true },
   run: async (payload: IngestPayload) => {
-    const { userId, source, mode } = payload
-    const connector = getConnector(source)
-    const lookbackDays = Number(process.env.INGEST_LOOKBACK_DAYS ?? 90)
-    const ctx = { userId, source, lookbackDays, cursor: null }
-
-    const stream =
-      mode === 'poll'
-        ? connector.poll(
-            ctx,
-            (await getSyncState(userId, source))?.lastSuccessfulSyncAt ??
-              new Date(Date.now() - lookbackDays * 86400_000),
-          )
-        : connector.load(ctx)
-
-    const stats = await ingestItems(userId, source, stream)
-    return { userId, source, mode, ...stats }
+    // This worker runs outside Next.js, so the instrumentation hook never fires -
+    // set up the isolated Langfuse provider here. The enrich/embed generations
+    // group under one "ingest-source" trace per run; flush before the task exits.
+    initTracing()
+    try {
+      if (!tracingEnabled) return await runIngest(payload)
+      return await propagateAttributes(
+        { userId: payload.userId, traceName: 'ingest-source', tags: ['ingestion', payload.source] },
+        () => startActiveObservation('ingest-source', () => runIngest(payload)),
+      )
+    } finally {
+      await flushTracing()
+    }
   },
 })
