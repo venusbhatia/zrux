@@ -13,6 +13,7 @@ import { chunkText } from './chunk'
 import { enrichChunk } from './enrich'
 import { setSyncState } from '../db/sync-state'
 import { withRetry } from '../llm/gateway'
+import { extractAndResolve } from '../graph/entity-resolution'
 
 export interface IngestStats {
   items: number
@@ -62,10 +63,26 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
   }))
   await withRetry(async () => {
     const del = await db.from('context_chunk').delete().eq('user_id', userId).eq('item_id', item.id)
-    if (del.error) throw new Error(`chunk delete ${raw.source}/${raw.externalId}: ${del.error.message}`)
+    if (del.error)
+      throw new Error(`chunk delete ${raw.source}/${raw.externalId}: ${del.error.message}`)
     const ins = await db.from('context_chunk').insert(rows)
-    if (ins.error) throw new Error(`chunk insert ${raw.source}/${raw.externalId}: ${ins.error.message}`)
+    if (ins.error)
+      throw new Error(`chunk insert ${raw.source}/${raw.externalId}: ${ins.error.message}`)
   })
+
+  // Step 9-10: triple extraction + entity resolution (gated to high-signal
+  // sources inside extractAndResolve). Best-effort and isolated: a graph failure
+  // must never undo a successfully embedded item. Toggle off with EXTRACT_TRIPLES=false.
+  if (process.env.EXTRACT_TRIPLES !== 'false') {
+    try {
+      await extractAndResolve(userId, raw, item.id)
+    } catch (err) {
+      console.error(
+        `[graph] extract/resolve skipped ${raw.source}/${raw.externalId}:`,
+        (err as Error).message,
+      )
+    }
+  }
 
   return rows.length
 }

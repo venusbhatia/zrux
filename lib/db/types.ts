@@ -193,6 +193,34 @@ export interface Database {
           score: number
         }[]
       }
+      match_entity: {
+        Args: {
+          p_user_id: string
+          p_type: string
+          p_name: string
+          p_threshold?: number
+        }
+        Returns: {
+          id: string
+          name: string
+          email: string | null
+          sim: number
+        }[]
+      }
+      find_entities: {
+        Args: {
+          p_user_id: string
+          p_name: string
+          p_threshold?: number
+          p_limit?: number
+        }
+        Returns: {
+          id: string
+          name: string
+          type: string
+          sim: number
+        }[]
+      }
       distinct_sources: {
         Args: {
           p_user_id: string

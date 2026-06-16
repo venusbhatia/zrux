@@ -31,6 +31,9 @@ async function runIngest(payload: IngestPayload) {
     if (!connector.handleEvent) {
       throw new Error(`connector ${source} does not support event mode`)
     }
+    if (payload.event == null) {
+      throw new Error(`event-mode ingest for ${source} missing payload.event`)
+    }
     stream = connector.handleEvent(payload.event)
   } else if (mode === 'poll') {
     stream = connector.poll(

@@ -52,6 +52,11 @@ export interface Connector {
   poll(ctx: SyncContext, since: Date): AsyncIterable<RawItem>
   // Ids only, for deletion detection (Slim sync flips is_deleted on vanished ids).
   slim(ctx: SyncContext): AsyncIterable<ExternalId>
+  // True when slim() only lists ids within the lookback window (a bounded walk,
+  // used when the source has no cheap id-only listing and a full-history scan
+  // would blow the task budget). Deletion reconciliation must then be scoped to
+  // the same window, or older-but-still-live items get falsely flagged deleted.
+  slimWindowed?: boolean
   // Optional webhook handler for Event-mode ingestion.
   handleEvent?(payload: unknown): AsyncIterable<RawItem>
 }

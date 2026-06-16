@@ -40,13 +40,20 @@ export async function reconcileDeletions(
   userId: string,
   source: string,
   liveIds: Set<string>,
+  opts: { since?: Date } = {},
 ): Promise<SlimResult> {
   const db = createServiceClient()
-  const { data, error } = await db
+  // When the connector's slim only walks a lookback window (slimWindowed), scope
+  // the diff to the same window. Otherwise stored items older than the window are
+  // absent from liveIds purely because slim never looked that far back, and would
+  // be falsely flagged is_deleted. Items older than `since` are left untouched.
+  let query = db
     .from('context_item')
     .select('external_id, is_deleted')
     .eq('user_id', userId)
     .eq('source', source)
+  if (opts.since) query = query.gte('source_created_at', opts.since.toISOString())
+  const { data, error } = await query
   if (error) throw new Error(`slim load stored ids ${source}: ${error.message}`)
 
   const stored = data ?? []
