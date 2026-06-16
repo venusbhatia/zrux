@@ -87,7 +87,7 @@ async function* listMemberChannels(userId: string): AsyncIterable<SlackChannel> 
       ...(cursor ? { cursor } : {}),
     })) as ChannelsResponse
     for (const ch of data.channels ?? []) {
-      if (ch.id && ch.is_member !== false) yield ch
+      if (ch.id && ch.is_member === true) yield ch
     }
     cursor = data.response_metadata?.next_cursor || undefined
   } while (cursor)
@@ -144,8 +144,10 @@ export const slackConnector: Connector = {
   },
 
   async *slim(ctx: SyncContext): AsyncIterable<ExternalId> {
-    const oldest = new Date(Date.now() - ctx.lookbackDays * 86400_000)
-    for await (const item of fetchAll(ctx.userId, oldest)) yield item.externalId
+    // Deletion detection must list the full id set, NOT a lookback window:
+    // reconcileDeletions diffs against ALL stored ids, so a windowed walk would
+    // flag older-but-still-live messages as deleted. Mirrors Notion's slim.
+    for await (const item of fetchAll(ctx.userId)) yield item.externalId
   },
 
   // Event-mode: a single Slack message event from the Event API webhook. The

@@ -93,8 +93,15 @@ async function handleSlack(req: NextRequest, rawBody: string): Promise<Response>
     return Response.json({ ok: true, unrouted: true })
   }
 
-  // Dedupe on Slack's event_id (preferred) or the channel:ts identity.
-  const dedupeId = envelope.event_id ?? `${event.channel}:${event.ts}`
+  // Dedupe on Slack's event_id (preferred) or the channel:ts identity. Without a
+  // stable id the idempotency key collapses to "undefined:undefined" and every
+  // such event collides onto one key, silently dropping all but the first. Skip
+  // (ack) instead so we never enqueue under a colliding key.
+  const dedupeId = envelope.event_id ?? (event.channel && event.ts ? `${event.channel}:${event.ts}` : null)
+  if (!dedupeId) {
+    console.warn('[webhook:slack] event missing event_id and channel/ts; dropping')
+    return Response.json({ ok: true, skipped: true })
+  }
   await enqueueEvent(userId, 'slack', event, dedupeId)
   return Response.json({ ok: true, enqueued: true })
 }
