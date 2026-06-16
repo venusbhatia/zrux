@@ -5,5 +5,11 @@
 export { default } from 'next-auth/middleware'
 
 export const config = {
-  matcher: ['/ask/:path*', '/today/:path*', '/relationships/:path*', '/search/:path*'],
+  matcher: [
+    '/ask/:path*',
+    '/today/:path*',
+    '/relationships/:path*',
+    '/search/:path*',
+    '/onboarding/:path*',
+  ],
 }
