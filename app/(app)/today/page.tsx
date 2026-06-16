@@ -28,6 +28,13 @@ export default function TodayPage() {
     setGreeting(timeGreeting(new Date()))
   }, [])
 
+  // True once a stated preference has reordered the brief. When set, the brief
+  // leads with preference-matched items rather than pure time-sensitivity, so the
+  // subtitle below has to drop the "ranked by what is most time-sensitive" claim.
+  const shaped =
+    data?.personalization != null &&
+    data.personalization.standing + data.personalization.scoped > 0
+
   useEffect(() => {
     let alive = true
     async function load() {
@@ -59,7 +66,9 @@ export default function TodayPage() {
           {greeting}. Here&apos;s what needs you.
         </h2>
         <p className="text-[15px] text-muted">
-          Pulled from across your connected tools and ranked by what is most time-sensitive.
+          {shaped
+            ? 'Pulled from across your connected tools, ordered to lead with your stated preferences.'
+            : 'Pulled from across your connected tools and ranked by what is most time-sensitive.'}
         </p>
       </div>
 
@@ -81,6 +90,12 @@ export default function TodayPage() {
         />
       ) : (
         <div className="flex flex-col gap-3">
+          {shaped && data.personalization && (
+            <p className="text-[13px] text-muted">
+              Ordering shaped by {data.personalization.standing + data.personalization.scoped} of
+              your preferences.
+            </p>
+          )}
           {data.cards.map((card, i) => (
             <BriefCard key={card.refs[0]?.item_id ?? i} card={card} />
           ))}

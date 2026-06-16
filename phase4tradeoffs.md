@@ -161,13 +161,22 @@ ownership check: `forgetPreference` refuses any id not in the caller's
 tenant-scoped list, and the route returns 404 (not 403) so it never reveals that an
 id exists for another tenant.
 
-### No Today wrapper (seam pinned by test instead)
+### No Today wrapper (the seam, now consumed by the Today briefing)
 
-The Phase 6/7 briefing reuses `getProfileBlock` + `assembleContext` directly with
-an `intent: 'daily_briefing'` plan; a wrapper would add indirection without adding
-safety. Rather than ship dead code, the seam is pinned by a unit test that calls
-the two primitives the way the briefing job will, so a refactor that breaks
-reusability fails here before that code is written.
+The Today briefing reuses `getProfileBlock` + `assembleContext` directly with an
+`intent: 'daily_briefing'` plan; a wrapper would add indirection without adding
+safety. After main shipped the Today page + `GET /api/today`, that route was wired
+to personalization with no new personalization-specific code: it already calls
+`retrieve()`, which runs `getProfileBlock` and folds the FOUNDER PROFILE into the
+CONTEXT block for the daily_briefing intent. Two small additions made it land:
+the `TODAY_SYSTEM` prompt now carries the same "lead with the items matching the
+stated ordering preference" rule as answer synthesis, and the response surfaces
+`personalization: { standing, scoped }` on the payload (NOT the `x-zrux-meta`
+header, because a precomputed/cached briefing is rendered from the record, not a
+live fetch with header access). Verified live on the demo tenant: with "triage
+investor threads first" the briefing leads with the investor cards (Sarah Chen,
+Northwind) and reports `standing: 1`; removing it reverts and reports `0`. A route
+unit test pins the provenance passthrough on both the full and thin paths.
 
 ### Out-of-band learning, never on the hot path
 

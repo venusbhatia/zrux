@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// The route runs the read path, then one generateObject call for briefing cards,
-// then grounds each card ref against the real retrieval citations (backfilling
-// source/url and dropping refs the model invented).
+// Mock the retrieval pipeline, the LLM call, auth, telemetry, and the thinness
+// check so the tests exercise only the Today route glue: grounding card refs
+// against real citations, the thin-path shortcut, auth/error status codes, and
+// the personalization provenance passthrough.
 const m = vi.hoisted(() => {
   class FakeUnauthorized extends Error {}
   return {
@@ -33,7 +34,29 @@ import { GET } from './route'
 
 const req = { headers: { get: () => null } } as never
 
-const citation = { n: 1, item_id: 'i1', source: 'gmail', type: 'email', title: 'Acme', url: 'https://mail/i1', date: '2026-06-14' }
+const citation = {
+  n: 1,
+  item_id: 'i1',
+  source: 'gmail',
+  type: 'email',
+  title: 'Acme',
+  url: 'https://mail/i1',
+  date: '2026-06-14',
+}
+
+// retrieve() returns the profile counts alongside the context; the route reads
+// profile.standingCount/scopedCount, so every mocked result must carry a profile.
+function retrieveResult(over: Record<string, unknown> = {}) {
+  return {
+    plan: { intent: 'daily_briefing' },
+    context: { block: '[1] Acme thread', citations: [citation] },
+    relaxed: false,
+    itemCount: 3,
+    graphFactCount: 0,
+    profile: { block: 'FOUNDER PROFILE...', memoryIds: ['m1'], standingCount: 0, scopedCount: 0 },
+    ...over,
+  }
+}
 
 function card(over: Record<string, unknown> = {}) {
   return {
@@ -55,11 +78,13 @@ describe('GET /api/today', () => {
   })
 
   it('returns an empty briefing and skips the LLM when context is thin', async () => {
-    m.retrieve.mockResolvedValue({
-      context: { block: '', citations: [] },
-      itemCount: 0,
-      relaxed: false,
-    })
+    m.retrieve.mockResolvedValue(
+      retrieveResult({
+        context: { block: '', citations: [] },
+        itemCount: 0,
+        profile: { block: '', memoryIds: [], standingCount: 0, scopedCount: 0 },
+      }),
+    )
     const res = await GET(req)
     expect(res.status).toBe(200)
     const body = (await res.json()) as { cards: unknown[]; empty: boolean }
@@ -68,11 +93,7 @@ describe('GET /api/today', () => {
   })
 
   it('grounds card refs against citations and drops cards whose refs are invented', async () => {
-    m.retrieve.mockResolvedValue({
-      context: { block: '[1] Acme thread', citations: [citation] },
-      itemCount: 3,
-      relaxed: false,
-    })
+    m.retrieve.mockResolvedValue(retrieveResult())
     m.generateObject.mockResolvedValue({
       object: {
         cards: [
@@ -106,5 +127,57 @@ describe('GET /api/today', () => {
   it('returns 502 when the read path throws', async () => {
     m.retrieve.mockRejectedValue(new Error('retrieval down'))
     expect((await GET(req)).status).toBe(502)
+  })
+})
+
+describe('GET /api/today personalization', () => {
+  beforeEach(() => {
+    m.getUserId.mockReset().mockResolvedValue('u1')
+    m.retrieve.mockReset()
+    m.generateObject.mockReset()
+  })
+
+  it('passes the profile counts through to the payload and grounds cards', async () => {
+    m.retrieve.mockResolvedValue(
+      retrieveResult({
+        itemCount: 1,
+        profile: { block: 'FOUNDER PROFILE...', memoryIds: ['m1'], standingCount: 1, scopedCount: 0 },
+      }),
+    )
+    m.generateObject.mockResolvedValue({
+      object: {
+        cards: [
+          {
+            kind: 'email',
+            title: 'Reply to Sarah',
+            tag: 'Due',
+            tagTone: 'warn',
+            body: 'b',
+            refs: [{ n: 1, label: 'Sarah' }],
+          },
+        ],
+      },
+    })
+    const res = await GET(req)
+    const json = await res.json()
+    expect(json.personalization).toEqual({ standing: 1, scoped: 0 })
+    expect(json.cards).toHaveLength(1)
+    expect(json.cards[0].refs[0]).toMatchObject({ item_id: 'i1', source: 'gmail' })
+  })
+
+  it('includes personalization on the thin (empty) path without an LLM call', async () => {
+    m.retrieve.mockResolvedValue(
+      retrieveResult({
+        context: { block: '', citations: [] },
+        itemCount: 0,
+        profile: { block: '', memoryIds: [], standingCount: 2, scopedCount: 1 },
+      }),
+    )
+    const res = await GET(req)
+    const json = await res.json()
+    expect(json.empty).toBe(true)
+    expect(json.cards).toHaveLength(0)
+    expect(json.personalization).toEqual({ standing: 2, scoped: 1 })
+    expect(m.generateObject).not.toHaveBeenCalled()
   })
 })
