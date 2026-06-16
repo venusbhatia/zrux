@@ -24,6 +24,17 @@ const STATUS_COLOR: Record<SourceStatus, string> = {
   error: '#b00020',
 }
 
+// OAuth init URLs are provider-supplied. Only ever navigate to an absolute
+// https URL so a reflected or misconfigured value cannot become a
+// javascript:/data:/relative open redirect.
+function isSafeRedirectUrl(url: string): boolean {
+  try {
+    return new URL(url).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 function Banner() {
   const params = useSearchParams()
   if (params.get('connected') === '1') {
@@ -76,6 +87,7 @@ export default function OnboardingPage() {
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
       const data = (await res.json()) as { redirectUrl?: string }
       if (!data.redirectUrl) throw new Error('No redirect URL returned')
+      if (!isSafeRedirectUrl(data.redirectUrl)) throw new Error('Unexpected redirect URL')
       window.location.href = data.redirectUrl
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start connection')
