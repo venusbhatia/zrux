@@ -20,6 +20,7 @@ Rules:
 - Cite every factual sentence with the bracketed number of its source, like [1] or [2][3].
 - The FOUNDER PROFILE encodes the founder's standing priorities. When it states an ordering or triage preference, lead with and emphasize the CONTEXT items that match it, even when other items might otherwise seem more urgent. Use it only to order and emphasize what you surface: never treat it as a fact source, never cite it, and never invent preferences not written in it. Every factual claim still comes from CONTEXT and must carry its [n] citation.
 - If CONTEXT is thin or lacks the answer, say plainly that there is not enough in the connected tools to answer, and stop. Do not invent.
+- When the QUESTION targets a specific person, company, or project (named in ENTITY SCOPE), only draw on CONTEXT items that clearly involve that entity (as author, sender, recipient, participant, assignee, or explicit subject). Never present other people's items or unrelated issues as if they belonged to that entity. If no CONTEXT item clearly involves them, say plainly that you could not find anything about that entity in the connected tools, and stop.
 - Be short and confident. Lead with the answer. No bullet soup, no filler, no "Based on the context" preamble.
 - Never use em dashes.`
 
@@ -36,9 +37,11 @@ export function isThin(context: AssembledContext): boolean {
 export function synthesizeStream(
   question: string,
   context: AssembledContext,
-  opts: { onFinish?: (text: string) => void | Promise<void> } = {},
+  opts: { entities?: string[]; onFinish?: (text: string) => void | Promise<void> } = {},
 ) {
-  const prompt = `QUESTION: ${question}\n\nCONTEXT:\n${context.block}`
+  const scope =
+    opts.entities && opts.entities.length > 0 ? `ENTITY SCOPE: ${opts.entities.join(', ')}\n\n` : ''
+  const prompt = `QUESTION: ${question}\n\n${scope}CONTEXT:\n${context.block}`
   return streamText({
     model: chatModel(),
     system: SYNTH_SYSTEM,

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const executeTool = vi.fn()
 vi.mock('./composio', () => ({ executeTool: (...args: unknown[]) => executeTool(...args) }))
 
-import { slackConnector } from './slack'
+import { slackConnector, slackPermalink } from './slack'
 
 async function collect<T>(it: AsyncIterable<T>): Promise<T[]> {
   const out: T[] = []
@@ -26,7 +26,7 @@ describe('slackConnector', () => {
       // FETCH_HISTORY for C1
       .mockResolvedValueOnce({
         messages: [
-          { ts: '1718841600.000100', text: 'Closed the round', user: 'U1' },
+          { ts: '1718841600.000100', text: 'Closed the round', user: 'U1', team: 'T1' },
           { ts: '1718841700.000200', text: 'joined', subtype: 'channel_join', user: 'U2' },
         ],
       })
@@ -43,6 +43,20 @@ describe('slackConnector', () => {
       title: '#general',
     })
     expect(items[0]!.body).toBe('Closed the round')
+    expect(items[0]!.url).toBe(
+      'https://slack.com/app_redirect?team=T1&channel=C1&message_ts=1718841600.000100',
+    )
+  })
+
+  it('slackPermalink builds an app_redirect link and degrades without team', () => {
+    expect(slackPermalink(undefined, 'C1', '1718841600.000100')).toBeUndefined()
+    expect(slackPermalink('T1', undefined, '1718841600.000100')).toBeUndefined()
+    expect(slackPermalink('T1', 'C1', '1718841600.000100')).toBe(
+      'https://slack.com/app_redirect?team=T1&channel=C1&message_ts=1718841600.000100',
+    )
+    expect(slackPermalink('T1', 'C1', undefined)).toBe(
+      'https://slack.com/app_redirect?team=T1&channel=C1',
+    )
   })
 
   it('handleEvent maps a single webhook message event', async () => {

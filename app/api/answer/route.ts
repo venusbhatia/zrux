@@ -214,6 +214,7 @@ async function buildAnswer(
   }
 
   const result = synthesizeStream(question, context, {
+    entities: plan.entities,
     onFinish: async (text) => {
       await onDone?.(text)
       // Write the answer to the semantic cache on synthesis success only (P5-4):

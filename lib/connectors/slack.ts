@@ -29,6 +29,7 @@ interface SlackMessage {
   username?: string
   subtype?: string
   thread_ts?: string
+  team?: string
 }
 interface ChannelsResponse {
   channels?: SlackChannel[]
@@ -38,6 +39,22 @@ interface HistoryResponse {
   messages?: SlackMessage[]
   has_more?: boolean
   response_metadata?: { next_cursor?: string }
+}
+
+// Slack's conversations.history returns no permalink and we never store the
+// workspace subdomain, so build the official app_redirect deep link from the team
+// id carried on each message. It resolves the right workspace without a subdomain
+// and targets the exact message via message_ts. Returns undefined when team/channel
+// are missing so the citation simply stays unlinked (no broken href).
+export function slackPermalink(
+  team: string | undefined,
+  channelId: string | undefined,
+  ts: string | undefined,
+): string | undefined {
+  if (!team || !channelId) return undefined
+  const params = new URLSearchParams({ team, channel: channelId })
+  if (ts) params.set('message_ts', ts)
+  return `https://slack.com/app_redirect?${params.toString()}`
 }
 
 // Slack message ts is a unix epoch with microseconds ("1718841600.123456").
@@ -67,7 +84,7 @@ function toRawItem(
     externalId: `${channelId}:${m.ts}`,
     title: channelName ? `#${channelName}` : undefined,
     author,
-    url: undefined,
+    url: slackPermalink(m.team, channelId, m.ts),
     sourceCreatedAt: when,
     sourceUpdatedAt: when,
     metadata: {
@@ -75,6 +92,7 @@ function toRawItem(
       channel: channelName,
       threadTs: m.thread_ts,
       slackUser: m.user,
+      team: m.team,
     },
     body: m.text ?? '',
     raw: m,
