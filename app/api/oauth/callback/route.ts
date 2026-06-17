@@ -1,15 +1,15 @@
 // GET /api/oauth/callback - Composio redirects here after the user grants
-// consent. We finalize any 'initiated' connections for this user (verify ACTIVE
-// via Composio), then ENQUEUE the first 90-day load on Trigger.dev. Ingestion is
-// never run inline in a route (CLAUDE.md); if Trigger.dev is not configured we
-// log and the load can be kicked manually (scripts/run-ingest.ts).
+// consent. We reconcile any 'initiated' connections for this user against live
+// Composio status (verify ACTIVE), finalize them, and ENQUEUE the first 90-day
+// load on Trigger.dev. Ingestion is never run inline in a route (CLAUDE.md); if
+// Trigger.dev is not configured we log and the load can be kicked manually
+// (scripts/run-ingest.ts). We only redirect with connected=1 when something
+// actually went ACTIVE, so an abandoned consent flow never reports success.
 
 import type { NextRequest } from 'next/server'
 import { captureError } from '@/lib/observability/report'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
-import { composio } from '@/lib/connectors/composio'
-import { createServiceClient } from '@/lib/db/supabase'
-import { enqueueLoad } from '@/lib/ingestion/enqueue'
+import { reconcileInitiated } from '@/lib/connectors/reconcile'
 
 export const runtime = 'nodejs'
 
@@ -22,34 +22,18 @@ export async function GET(req: NextRequest): Promise<Response> {
     throw err
   }
 
-  const db = createServiceClient()
-  const { data: pending, error } = await db
-    .from('source_connection')
-    .select('source, connected_account_id')
-    .eq('user_id', userId)
-    .eq('status', 'initiated')
-  if (error) {
-    captureError('oauth/callback', new Error(error.message), { userId, stage: 'list-pending' })
-    return Response.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/onboarding?error=1`, 302)
+  const base = `${process.env.NEXT_PUBLIC_APP_URL}/onboarding`
+  try {
+    const { activated } = await reconcileInitiated(userId)
+    // Only claim success if a connection actually went ACTIVE. If nothing
+    // activated, the account may still be propagating (or the user bailed): send
+    // them back in a 'pending' state, not a false 'connected' one. The onboarding
+    // page keeps polling and re-reconciles, so it resolves to Ready or to a
+    // retryable 'failed' without ever lying about the outcome.
+    const param = activated > 0 ? 'connected=1' : 'pending=1'
+    return Response.redirect(`${base}?${param}`, 302)
+  } catch (err) {
+    captureError('oauth/callback', err, { userId, stage: 'reconcile' })
+    return Response.redirect(`${base}?error=1`, 302)
   }
-
-  for (const conn of pending ?? []) {
-    try {
-      const account = (await composio().connectedAccounts.get(conn.connected_account_id)) as {
-        status?: string
-      }
-      if ((account.status ?? '').toUpperCase() === 'ACTIVE') {
-        await db
-          .from('source_connection')
-          .update({ status: 'active', updated_at: new Date().toISOString() })
-          .eq('user_id', userId)
-          .eq('source', conn.source)
-        await enqueueLoad(userId, conn.source)
-      }
-    } catch (err) {
-      captureError('oauth/callback', err, { userId, source: conn.source, stage: 'finalize' })
-    }
-  }
-
-  return Response.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/onboarding?connected=1`, 302)
 }

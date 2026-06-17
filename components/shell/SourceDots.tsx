@@ -17,6 +17,7 @@ interface ConnectionStatus {
 function dotColor(status: string): string {
   if (status === 'active') return '#34c759'
   if (status === 'initiated') return '#f5a623'
+  if (status === 'error') return '#ff3b30'
   return '#d2d2d7'
 }
 

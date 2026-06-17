@@ -36,8 +36,18 @@ function OnboardingInner() {
 
   useEffect(() => {
     if (params.get('connected')) setNotice('Source connected. Indexing has started.')
+    if (params.get('pending')) setNotice('Finishing up your connection...')
     if (params.get('error')) setNotice('That connection did not complete. Try again.')
   }, [params])
+
+  // Re-check any 'initiated' rows against live Composio status on mount. A flow
+  // the user abandoned (back button out of the Composio screen) never hits the
+  // OAuth callback, so without this the row stays 'initiated' forever and shows a
+  // false "connecting" state with no resolution. This resolves it to active or to
+  // a retryable error. Runs once; the 3s poll below then reflects the new state.
+  useEffect(() => {
+    void fetch('/api/connections/reconcile', { method: 'POST' }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -119,7 +129,12 @@ function OnboardingInner() {
         {CONNECTABLE.map((source) => {
           const meta = sourceMeta(source)
           const c = bySource.get(source)
-          const connected = Boolean(c)
+          // "Connected" means the Composio account is actually ACTIVE, not merely
+          // that a row exists. An 'initiated' (OAuth started, never finished) or
+          // 'error' row is NOT connected: keep the action button so the user can
+          // retry instead of seeing a permanent, false "Working" badge.
+          const connected = c?.status === 'active'
+          const retry = Boolean(c) && !connected
           return (
             <div
               key={source}
@@ -145,7 +160,7 @@ function OnboardingInner() {
                   disabled={connecting === source}
                   className="rounded-pill bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-press disabled:opacity-50"
                 >
-                  {connecting === source ? 'Opening...' : 'Connect'}
+                  {connecting === source ? 'Opening...' : retry ? 'Retry' : 'Connect'}
                 </button>
               )}
             </div>
