@@ -182,7 +182,6 @@ export default function AskPage() {
           <div className="flex flex-col gap-7">
             {exchanges.map((ex) => {
               const citations = ex.meta?.citations ?? []
-              const citeNums = new Set(citations.map((c) => c.n))
               return (
                 <div key={ex.id} className="flex flex-col gap-3">
                   <div className="flex justify-end">
@@ -200,7 +199,7 @@ export default function AskPage() {
                           <>
                             <AnswerText
                               text={ex.answer}
-                              citationNumbers={citeNums}
+                              citations={citations}
                               onCite={(n) => setOpenCite((m) => ({ ...m, [ex.id]: n }))}
                             />
                             {!ex.done && (
@@ -233,7 +232,7 @@ export default function AskPage() {
                       {citations.length > 0 && (
                         <div className="mt-4">
                           <div className="mb-2 text-[11px] font-semibold tracking-[.04em] text-hint">
-                            SOURCES · CLICK A NUMBER TO EXPAND
+                            SOURCES · CLICK TO EXPAND
                             {ex.meta?.relaxed ? ' · FILTERS RELAXED FOR BREADTH' : ''}
                           </div>
                           <div className="flex flex-col gap-2">
