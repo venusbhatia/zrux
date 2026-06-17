@@ -13,8 +13,9 @@ import { rollupToItems } from './rollup'
 import { assembleContext } from './assemble'
 import { expandGraph } from './graph-expand'
 import { getProfileBlock, EMPTY_PROFILE } from '../personalization/supermemory'
+import { findNextMeeting, enrichPlanForMeeting } from './meeting-prep'
 import type { ProfileBlock } from '../personalization/supermemory'
-import type { AssembledContext, RetrievalPlan } from './types'
+import type { AssembledContext, RetrievalPlan, SearchHit } from './types'
 
 export interface RetrievalResult {
   plan: RetrievalPlan
@@ -34,14 +35,43 @@ export async function retrieve(
   precomputedEmbedding?: number[],
 ): Promise<RetrievalResult> {
   const plan = await planQuery(question) // Stage 1 (AI SDK span: plan-query)
+
+  // Stage 1a (meeting_prep only): plain semantic search fails this intent because
+  // prep materials predate the meeting (the forward `after` filter drops them) and
+  // "next meeting" never names who you are meeting. Find the target meeting, then
+  // rewrite the plan to retrieve cross-source prep context about its participants,
+  // and keep a forced-include hit so the meeting itself is always cited. Gated; all
+  // other intents are byte-identical to before.
+  let meetingHit: SearchHit | null = null
+  if (plan.intent === 'meeting_prep') {
+    const meeting = await findNextMeeting(userId, new Date()).catch((err) => {
+      console.error('[retrieval] meeting-prep lookup skipped:', (err as Error).message)
+      return null
+    })
+    if (meeting) {
+      await enrichPlanForMeeting(userId, plan, meeting)
+      meetingHit = {
+        chunk_id: `meeting:${meeting.item_id}`,
+        item_id: meeting.item_id,
+        content: meeting.content,
+        score: Number.MAX_SAFE_INTEGER, // lead the rollup so the meeting is cited [1]
+      }
+    }
+  }
+
   // Stage 1b: reuse the route's precomputed embedding when present, else embed the
   // cleaned query. TRADE-OFF: the route always passes the RAW-question embedding
   // (it already computed it for the Stage 0 cache check), so in production vector
   // search runs on the raw question, not on plan.semantic_query. This saves one
   // embedding call per answer; the keyword channel still uses plan.keyword_terms.
   // Eval-validated (recall@3 0.935). Re-embedding semantic_query here is the
-  // quality-max alternative if a recall regression ever shows up.
-  const queryEmbedding = precomputedEmbedding ?? (await embedText(plan.semantic_query || question))
+  // quality-max alternative if a recall regression ever shows up. EXCEPTION: for
+  // meeting_prep we re-embed the rewritten query (it differs sharply from the raw
+  // question) so the dense channel centers on the meeting's participants.
+  const queryEmbedding =
+    meetingHit !== null
+      ? await embedText(plan.semantic_query || question)
+      : (precomputedEmbedding ?? (await embedText(plan.semantic_query || question)))
 
   // Stage 2 search -> 2b rerank -> 2c rail runs as a sequential sub-chain; graph
   // expansion and personalization are independent best-effort enrichers fired in
@@ -91,10 +121,13 @@ export async function retrieve(
     }),
   ])
 
+  // Prepend the forced meeting hit (meeting_prep) so the meeting is always rolled
+  // up and cited, regardless of how the rewritten query ranked it.
+  const hitsForRollup = meetingHit ? [meetingHit, ...searchOut.hits] : searchOut.hits
   const items = await traceStage(
     'rollup-to-items',
-    { chunksIn: searchOut.hits.length, diversify: searchOut.diversify },
-    () => rollupToItems(userId, searchOut.hits, { diversify: searchOut.diversify }),
+    { chunksIn: hitsForRollup.length, diversify: searchOut.diversify },
+    () => rollupToItems(userId, hitsForRollup, { diversify: searchOut.diversify }),
     (r) => ({ itemsOut: r.length }),
   )
   const context = assembleContext(items, graph.facts, profile)

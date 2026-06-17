@@ -16,7 +16,7 @@ const PER_SOURCE_LIMIT = 15
 // not crowd every other connected tool out of the candidate set. For these we
 // retrieve per-source and merge, so the answer can span sources (spec Phase 2:
 // "What happened across the company this week" spans 4+ sources).
-const BROAD_INTENTS = new Set(['cross_source', 'company_summary', 'daily_briefing'])
+const BROAD_INTENTS = new Set(['cross_source', 'company_summary', 'daily_briefing', 'meeting_prep'])
 
 interface SearchResult {
   hits: SearchHit[]
