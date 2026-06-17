@@ -159,6 +159,8 @@ describe('deriveSurfaces', () => {
         meetings: 0,
         dormancyDays: 5,
         responsiveness: 0,
+        lastOutboundTs: daysAgo(5).getTime(),
+        lastInboundTs: 0,
       } as never,
     }
     const s = deriveSurfaces([strong, dormant, waiting])

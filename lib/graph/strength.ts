@@ -80,6 +80,8 @@ export interface StrengthFactors {
   lastInteraction: string // ISO
   firstInteraction: string // ISO
   dormancyDays: number
+  lastInboundTs: number // ms epoch, 0 if never
+  lastOutboundTs: number // ms epoch, 0 if never
 }
 
 export interface ContactStrength {
@@ -149,6 +151,13 @@ export function scoreContact(interactions: Interaction[], now: Date): ContactStr
   const longevityDays = (last - first) / DAY_MS
   const longevity = saturate(longevityDays, 180)
 
+  const lastInboundTs = interactions
+    .filter((i) => i.direction === 'inbound')
+    .reduce((max, i) => Math.max(max, i.ts.getTime()), 0)
+  const lastOutboundTs = interactions
+    .filter((i) => i.direction === 'outbound')
+    .reduce((max, i) => Math.max(max, i.ts.getTime()), 0)
+
   // Presence = "how much contact", engagement = "how two-way". Engagement gates
   // presence so one-way streams can't masquerade as strong relationships.
   const presence = 0.4 * recency + 0.3 * frequency + 0.15 * privacy + 0.15 * longevity
@@ -170,6 +179,8 @@ export function scoreContact(interactions: Interaction[], now: Date): ContactStr
       lastInteraction: new Date(last).toISOString(),
       firstInteraction: new Date(first).toISOString(),
       dormancyDays: Math.round(dormancyDays),
+      lastInboundTs,
+      lastOutboundTs,
     },
   }
 }
@@ -234,11 +245,21 @@ export function aggregateContacts(
   }
 
   for (const r of rows) {
-    const ts = new Date(r.source_created_at)
     const meta = r.metadata ?? {}
     const threadId = (meta.threadId as string) ?? null
+    const isCalendar = r.source === 'calendar' || r.type === 'meeting'
+    // For calendar rows use the actual meeting start time; invite creation time
+    // (source_created_at) can be weeks before the meeting and corrupts recency.
+    const ts = (() => {
+      if (isCalendar) {
+        const start = meta.start as { dateTime?: string; date?: string } | undefined
+        const startStr = start?.dateTime ?? start?.date
+        if (startStr) return new Date(startStr)
+      }
+      return new Date(r.source_created_at)
+    })()
 
-    if (r.source === 'calendar' || r.type === 'meeting') {
+    if (isCalendar) {
       const participants = (meta.participants as Array<{ email?: string; name?: string }>) ?? []
       const ccCount = Math.max(0, participants.length - 1)
       for (const p of participants) {
@@ -354,10 +375,15 @@ export function deriveSurfaces(contacts: RankedContact[]): RelationshipSurfaces 
     .filter((c) => twoWay(c) && c.factors.dormancyDays >= 21)
     .sort((a, b) => b.factors.dormancyDays - a.factors.dormancyDays)
     .slice(0, 6)
+  // A contact is awaiting reply when the founder's most recent message is newer
+  // than the contact's most recent reply (catches established relationships, not
+  // just cold outreach where inbound === 0).
   const awaitingReply = contacts
-    .filter(
-      (c) => c.factors.outbound > 0 && c.factors.responsiveness < 1 && c.factors.inbound === 0,
-    )
+    .filter((c) => {
+      const lastOut = c.factors.lastOutboundTs
+      const lastIn = c.factors.lastInboundTs
+      return lastOut > 0 && lastOut > lastIn
+    })
     .slice(0, 6)
   return { strongest, losingTouch, awaitingReply }
 }

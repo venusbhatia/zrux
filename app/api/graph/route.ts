@@ -48,10 +48,8 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   try {
     const identity = founderIdentity()
-    const ranked = (await computeContactStrengths(userId, new Date(), identity)).slice(
-      0,
-      MAX_CONTACTS,
-    )
+    const allRanked = await computeContactStrengths(userId, new Date(), identity)
+    const ranked = allRanked.slice(0, MAX_CONTACTS)
 
     // Resolve nicer names from the entity table where one exists (email key).
     const db = createServiceClient()
@@ -77,7 +75,9 @@ export async function GET(req: NextRequest): Promise<Response> {
       lastTitle: c.lastTitle,
     }))
 
-    const surf = deriveSurfaces(ranked)
+    // Derive surfaces over the full list — awaiting-reply and losing-touch
+    // contacts score intentionally low and would be cut off by MAX_CONTACTS.
+    const surf = deriveSurfaces(allRanked)
     const surfaces = {
       strongest: surf.strongest.map((c) => c.email),
       losingTouch: surf.losingTouch.map((c) => c.email),
