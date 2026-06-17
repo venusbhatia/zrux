@@ -49,3 +49,4 @@ Assignment.pdf
 # local verification artifacts
 .playwright-mcp/
 *.png
+!docs/assets/*.png

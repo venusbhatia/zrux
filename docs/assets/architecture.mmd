@@ -1,0 +1,45 @@
+flowchart LR
+  subgraph Sources["Data Sources"]
+    Gmail["Gmail"]
+    Calendar["Calendar"]
+    Linear["Linear"]
+    Slack["Slack"]
+    Notion["Notion"]
+    GitHub["GitHub"]
+    Sentry["Sentry"]
+    Audio["Voice memos / raw audio"]
+  end
+
+  Gmail -->|"managed OAuth + fetch"| Composio
+  Calendar -->|"managed OAuth + fetch"| Composio
+  Linear -->|"managed OAuth + fetch"| Composio
+  Slack -->|"managed OAuth + fetch"| Composio
+  Notion -->|"managed OAuth + fetch"| Composio
+  GitHub -->|"managed OAuth + fetch"| Composio
+  Sentry -->|"managed OAuth + fetch"| Composio
+  Audio -->|"raw audio"| Deepgram["Deepgram STT<br/>diarized transcript"]
+
+  Composio --> Jobs["Ingestion Jobs<br/>Trigger.dev"]
+  Deepgram --> Jobs
+
+  subgraph Store["Supabase - Postgres + pgvector"]
+    Context["Layer 1: Context Engine<br/>context_item<br/>context_chunk"]
+    Graph["Layer 2: Relationship Graph<br/>entity / edge"]
+  end
+
+  Jobs -->|"normalize, enrich, embed"| Context
+  Jobs -->|"extract typed triples + speakers"| Graph
+
+  subgraph Serving["Serving Plane"]
+    Web["Next.js Web Chat"]
+    Telegram["Telegram Bot"]
+    Retrieval["Retrieval + Synthesis<br/>Vercel AI SDK"]
+  end
+
+  Web --> Retrieval
+  Telegram --> Retrieval
+  Retrieval -->|"hybrid retrieve"| Context
+  Retrieval -->|"graph expand"| Graph
+  Retrieval -->|"fetch profile"| Profile["Layer 3: Personalization<br/>Supermemory"]
+  Retrieval -->|"generate"| Gateway["OpenRouter + fallback"]
+  Retrieval -.->|"trace every call"| Langfuse["Langfuse"]

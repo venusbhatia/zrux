@@ -2,185 +2,338 @@
 
 # zrux
 
-### The chief of staff that already read everything.
+### A founder context engine that answers from what it already knows.
 
-zrux connects to your inbox, calendar, Slack, Linear, and Notion, then answers real questions about your work. Every answer is grounded in your own data and cited back to the source it came from. No guessing, no made-up context.
-
-</div>
-
-![Today briefing](docs/assets/today.png)
+zrux ingests Gmail, Google Calendar, Linear, Slack, and Notion into one grounded memory layer, then answers high-leverage founder questions with citations back to the stored source context. It is not a live-API chatbot. The answer path never calls Gmail, Linear, Slack, or any other source while the founder waits.
 
 <br />
 
-## Ask it anything
+[Architecture](#how-zrux-works) | [Quickstart](#quickstart) | [Demo Questions](#demo-questions) | [Proof](#proof-of-work) | [Setup Guide](docs/SETUP.md)
 
-You talk to zrux the way you'd brief a sharp new hire who somehow already knows your whole company. Ask a question, get a straight answer, and click any number to see exactly where it came from.
+</div>
 
-![Ask, with cited answers](docs/assets/ask.png)
+<br />
 
-```
-You   What should I focus on today?
+## Why It Exists
 
-zrux  Three things are genuinely time-sensitive today.
-
-      1. The Acme renewal. Dana Reyes has been quiet for nine days and
-         the $84k contract auto-renews Friday [1], while two support
-         escalations are still open [2]. A short check-in this morning
-         is the highest-leverage move.
-
-      2. The checkout incident. Errors jumped 4x right after yesterday's
-         4:12pm deploy [3], and there's still no Linear issue tracking it.
-
-      3. Priya's offer. Her Staff Engineer offer lapses at 5pm [4]. The
-         team is 4:1 in favour and comp is approved, so this just needs
-         your sign-off.
-
-      [1] Gmail, Re: Acme renewal terms, 9d ago
-      [2] Sentry, SUP-211 SSO failures, 5d ago
-      [3] Sentry, Checkout error spike, 1d ago
-      [4] Linear, OFFER-12 Priya Shah, 2d ago
-```
-
-If the context isn't there, zrux says so instead of inventing one. Thin evidence gets an honest "not enough in your connected tools" rather than a confident hallucination.
-
-**Questions it's good at:**
+Founders do not need another chat box with a search tool bolted on. They need a system that has already read the inbox, calendar, issue tracker, docs, and team chatter, then can answer:
 
 - What should I focus on today?
 - Summarize investor activity this week.
 - Which tasks are blocked right now?
 - What should I know before my next meeting?
 - What follow-ups am I missing?
-- What customer issues keep coming up?
+
+zrux is built around a simple constraint: answers come from stored context, not live tool calls at answer time. Ingestion can be slow, durable, and retriable. Serving should be fast, synchronous, and grounded.
 
 <br />
 
-## See your world
+## Product Tour
 
-**Relationships.** The people, companies, and projects in your orbit, wired together from what actually happened across your tools. Tap any node to see the recent signals around it.
+<p>
+  <strong>Landing</strong><br />
+  A focused first impression: zrux is the morning brief that reads everything for you.
+</p>
 
-![Relationships graph](docs/assets/relationships.png)
+<p>
+  <img src="docs/assets/landing-hero.png" alt="zrux landing page hero" />
+</p>
 
-**Search.** One query across email, Slack, Linear, Notion, and Calendar at once. Keyword precision and semantic recall in the same ranked list, with a match score on every hit.
-
-![Search across sources](docs/assets/search.png)
+<table>
+  <tr>
+    <td width="50%">
+      <strong>Today</strong><br />
+      A ranked morning brief assembled from connected tools and ordered by what needs attention.
+    </td>
+    <td width="50%">
+      <strong>Ask: Zrux workspace</strong><br />
+      Grounded answers with inline source badges and expandable cited source cards.
+    </td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/app-today.png" alt="Today briefing screen from the live app" /></td>
+    <td><img src="docs/assets/app-ask-zrux.png" alt="Ask screen answering what to get done for Zrux" /></td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Relationships</strong><br />
+      Relationship strength, reply gaps, and the founder's orbit across email and calendar.
+    </td>
+    <td width="50%">
+      <strong>Ask: Rex workspace</strong><br />
+      A second grounded answer over a different workspace, with Linear and Notion citations.
+    </td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/app-relationships.png" alt="Relationships screen from the live app" /></td>
+    <td><img src="docs/assets/app-ask-rex.png" alt="Ask screen answering what to do in Rex today" /></td>
+  </tr>
+</table>
 
 <br />
 
-## How it works
+## Demo Questions
 
-zrux is a context engine, not a chatbot that calls APIs while you wait. It runs as two planes that share only a database.
+These are the submission walkthrough questions the system is designed to answer from stored context:
 
-The **ingestion plane** reads your sources on a schedule, normalizes everything into one shape, embeds it, and writes it to Postgres. The **answer plane** never touches a source API. It reads what's already stored, retrieves the right slice, and asks an LLM to write a grounded, cited answer. Ingestion is slow and in the background. Answering is fast and synchronous.
+```text
+What should I focus on today?
+Summarize investor activity this week.
+Which tasks are blocked right now?
+```
+
+Good stretch questions:
+
+```text
+What should I know before my next meeting?
+What follow-ups am I missing?
+What customer issues are showing up repeatedly?
+```
+
+When context is missing, zrux says so. A refusal like "there is not enough investor context in your connected tools" is a correct answer, not a failure mode.
+
+<br />
+
+## How zrux Works
+
+zrux is two planes over one database.
+
+- The **ingestion plane** runs in Trigger.dev. It fetches source data through connectors, normalizes it, chunks it, enriches it, embeds it, extracts graph facts, and writes everything to Postgres.
+- The **answer plane** runs in Next.js. It checks the semantic cache, plans the query, retrieves from Postgres, expands through the relationship graph, reranks, rolls up chunks to source items, and streams a cited answer.
+- The planes share only Supabase Postgres. Source APIs are never called during answer synthesis.
+
+![zrux architecture](docs/assets/architecture.svg)
+
+<details>
+<summary>Editable Mermaid data-flow diagram</summary>
 
 ```mermaid
 flowchart LR
-  subgraph Ingest["Ingestion plane (background)"]
-    direction TB
-    S["Gmail · Calendar · Slack<br/>Linear · Notion"] --> N["Normalize · chunk · enrich"]
-    N --> E["Embed"]
-    E --> G["Extract entities + edges"]
+  subgraph Sources["Real sources"]
+    Gmail["Gmail"]
+    Calendar["Google Calendar"]
+    Linear["Linear"]
+    Slack["Slack"]
+    Notion["Notion"]
+    Audio["Voice memos / meetings"]
   end
 
-  DB[("Postgres<br/>pgvector + graph")]
-
-  Ingest --> DB
-
-  subgraph Answer["Answer plane (live)"]
-    direction TB
-    Q["Your question"] --> P["Plan the query"]
-    P --> H["Hybrid search"]
-    H --> X["Graph expand"]
-    X --> R["Roll up + assemble"]
-    R --> Y["Synthesize, cited"]
+  subgraph Ingestion["Ingestion plane - Trigger.dev"]
+    Connectors["Connector contract<br/>load / poll / slim / event"]
+    Normalize["Normalize + persist raw"]
+    Chunk["Chunk + provenance + optional gloss"]
+    Embed["OpenAI embeddings<br/>1536 dims"]
+    Triples["Triple extraction<br/>email, calendar, Notion, Linear, meetings"]
   end
 
-  DB --> Answer
+  subgraph Store["Supabase Postgres + pgvector"]
+    Items["context_item<br/>raw + summary + metadata"]
+    Chunks["context_chunk<br/>partitioned vectors + FTS"]
+    Graph["entity + edge<br/>relationship graph"]
+  end
+
+  subgraph Answer["Answer plane - Next.js"]
+    Cache["Redis semantic cache"]
+    Plan["Query understanding"]
+    Search["hybrid_search()<br/>dense + keyword + RRF"]
+    Expand["Graph expansion"]
+    Rerank["Cohere rerank"]
+    Assemble["Rollup + assemble"]
+    Synthesis["Read-only synthesis<br/>grounded citations"]
+  end
+
+  Sources --> Connectors --> Normalize --> Chunk --> Embed --> Chunks
+  Normalize --> Items
+  Chunk --> Triples --> Graph
+  Cache --> Plan --> Search --> Expand --> Rerank --> Assemble --> Synthesis
+  Chunks --> Search
+  Items --> Assemble
+  Graph --> Expand
 ```
 
-Three things make the answers good:
+</details>
 
-**Hybrid retrieval.** Every query runs dense vector search and keyword search together, fused by Reciprocal Rank Fusion and nudged by how recent things are. Vector search alone misses exact terms. Keyword search alone misses meaning. Doing both and fusing them beats either one.
+### The Data Flow
 
-**A real relationship graph.** As data comes in, zrux pulls out typed entities (people, companies, projects) and the relationships between them, resolving "Sarah", "Sarah Chen", and "sarah@acme.com" into one node. At answer time it expands from the people and companies in your question to pull in connected context you didn't think to ask for.
-
-**Grounded and safe by design.** The model that writes your answer holds zero side-effecting tools. It can read context and produce text, nothing else. So even a hostile email that tries to hijack the assistant can only change words on a screen, never take an action. Retrieved content is treated as data, never as instructions.
-
-<br />
-
-## What it connects to
-
-| Source                 | Via                       | Status        |
-| ---------------------- | ------------------------- | ------------- |
-| Gmail                  | Composio OAuth            | Live          |
-| Google Calendar        | Composio OAuth            | Live          |
-| Linear                 | API token                 | Live          |
-| Slack                  | OAuth + webhooks          | Live          |
-| Notion                 | OAuth                     | Live          |
-| GitHub / Sentry        | same `Connector` contract | Ready to wire |
-| Voice memos + meetings | Deepgram Nova-3, diarized | Roadmap       |
-
-Every source implements the same `Connector` interface (`load`, `poll`, `slim`), so adding the next one is one file, not a rewrite.
+| Stage | What happens | Why it matters |
+| --- | --- | --- |
+| 1. Connect | Composio handles OAuth and source fetches behind the local `Connector` contract. | OAuth velocity without letting the integration vendor own retrieval logic. |
+| 2. Ingest | Trigger.dev jobs call `load`, `poll`, `slim`, and optional webhooks. | Long-running sync never happens inside a Next.js API route. |
+| 3. Normalize | Every item becomes a `context_item` with `source_created_at`, `source_updated_at`, raw payload, metadata, and deletion state. | The raw episodic layer can be reprocessed without re-fetching source APIs. |
+| 4. Chunk | Long content is split into `context_chunk` rows with provenance lines and optional contextual gloss. | Retrieval gets small, attributable units without losing source identity. |
+| 5. Embed | Chunks use OpenAI `text-embedding-3-large` at 1536 dims. | pgvector stores dense meaning alongside Postgres full-text search. |
+| 6. Extract graph | High-signal sources produce typed triples, then entity resolution canonicalizes by email first. | The assistant can answer relationship questions, not just text search questions. |
+| 7. Retrieve | `hybrid_search()` runs exact KNN plus keyword search over the tenant-filtered set, then fuses by RRF and recency. | Vector recall and keyword precision reinforce each other. |
+| 8. Answer | The read-only model synthesizes from assembled context and cites every claim. | Prompt injection can affect words, not actions. Thin context is refused. |
 
 <br />
 
-## Built with
+## Implementation Status
 
-|                 |                                                  |
-| --------------- | ------------------------------------------------ |
-| App             | Next.js (App Router) + TypeScript                |
-| Database        | Supabase: Postgres + pgvector                    |
-| LLM             | OpenRouter (Claude Sonnet) via the Vercel AI SDK |
-| Embeddings      | OpenAI `text-embedding-3-large`                  |
-| Integrations    | Composio managed OAuth                           |
-| Background jobs | Trigger.dev                                      |
-| Personalization | Supermemory                                      |
-| Tracing         | Langfuse                                         |
+| Source | Status | Notes |
+| --- | --- | --- |
+| Gmail | Demo-verified real ingest | Composio OAuth, 90-day load, poll-ready connector. |
+| Google Calendar | Demo-verified real ingest | Same Google consent surface as Gmail; meetings become context items. |
+| Linear | Demo-verified real ingest | API-backed connector maps issues and blocked status. |
+| Slack | Implemented connector | OAuth/webhook path and HMAC verification are covered by tests. |
+| Notion | Implemented connector | Page fetch and markdown fallback are covered by tests. |
+| GitHub | Contract-ready | Fits the same connector shape; auth env is already reserved. |
+| Sentry | Contract-ready | Included in env and architecture as the error-monitoring source. |
+| Voice memos / meetings | Roadmap | Deepgram key path is reserved; diarized audio is designed into the ingestion pipeline. |
 
 <br />
 
-## Run it yourself
+## Proof of Work
+
+This repo is intentionally built as the submission artifact, not a mock demo.
+
+- Real data has been ingested through Gmail, Google Calendar, and Linear.
+- The system correctly answered "What should I focus on today?" from stored context with citations.
+- The system correctly refused "Summarize investor activity this week" when the connected tenant had no investor evidence.
+- "What follow-ups am I missing?" returned grounded, cited follow-ups without inventing context.
+- The current Vitest suite passes with 29 test files and 148 tests across API routes, connector mapping, ingestion normalization/chunking/enrichment, retrieval rail/rerank/rollup/assemble, semantic cache, LLM gateway failover, entity resolution, triple-extraction gating, personalization, Slack webhooks, and observability.
+
+Key reliability behaviors are tested:
+
+- Cache hit skips the retrieval and synthesis pipeline.
+- Gateway failure degrades to cited retrieved context when possible.
+- Thin context skips synthesis and returns an honest refusal.
+- Slack and Sentry-style noisy sources are excluded from triple extraction gates.
+- Entity resolution prefers email matches and avoids risky fuzzy merges.
+
+<br />
+
+## Quickstart
 
 ```bash
 pnpm install
-cp .env.example .env.local        # fill in your keys
-pnpm exec supabase db push        # apply the schema
-pnpm db:types                     # generate typed client
+cp .env.example .env.local
+pnpm exec supabase link --project-ref <your-project-ref>
+pnpm exec supabase db push
+pnpm db:types
 pnpm dev
 ```
 
-Keys are grouped by what they turn on, so you can stand up the core before wiring every source. Full list and where to get each one lives in [`docs/SETUP.md`](docs/SETUP.md); names only (no values) are in [`.env.example`](.env.example).
+Then open [http://localhost:3000](http://localhost:3000), sign in, connect sources, ingest, and ask the demo questions.
 
-- **Tier 1, the spine:** Supabase, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`. Enough to migrate the schema and answer questions.
-- **Tier 2, real data:** `COMPOSIO_API_KEY`, Google OAuth for sign-in, `TRIGGER_*` for ingestion.
-- **Tier 3, quality:** Cohere, Upstash, Deepgram, Supermemory, Langfuse.
+Run the test suite:
 
 ```bash
-pnpm test     # 104 tests across connectors, ingestion, retrieval, and the graph
+pnpm test
 ```
+
+Full credential setup lives in [docs/SETUP.md](docs/SETUP.md). `.env.example` contains names only and must never contain real secrets.
+
+### Environment Tiers
+
+| Tier | Variables | Unlocks |
+| --- | --- | --- |
+| Core spine | Supabase, `DATABASE_URL`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | Migrations, embeddings, retrieval, answer synthesis. |
+| Real ingestion | `COMPOSIO_API_KEY`, per-source Composio auth config ids, Google OAuth, Trigger.dev | Gmail, Calendar, Linear, Slack, Notion ingestion. |
+| Quality and resilience | Cohere, Upstash Redis, Supermemory, Langfuse, Sentry, Deepgram | Reranking, semantic cache, circuit breaker, personalization, tracing, audio. |
 
 <br />
 
-## Tradeoffs and what's next
+## Tech Stack
 
-Real integrations only, no mock data. The answers come from whatever you actually connect.
-
-Retrieval uses exact nearest-neighbor search over each tenant's own data, which is more accurate than an approximate index at this scale. HNSW is there for when a single tenant crosses millions of vectors. The resilience layer (semantic cache, circuit breaker with model fallback, and a Cohere reranker) is partly in place and partly on the roadmap. Audio ingestion, a proactive morning briefing over Telegram, and a richer eval harness are the next things on deck.
-
-The deeper design notes, schema, and the reasoning behind each decision live in [`docs/Architecture.md`](docs/Architecture.md) and [`docs/trade-offs.md`](docs/trade-offs.md).
+| Layer | Choice |
+| --- | --- |
+| App | Next.js App Router, React, TypeScript |
+| Package manager | pnpm |
+| Database | Supabase Postgres, pgvector, RLS, hash-partitioned chunks |
+| Ingestion jobs | Trigger.dev |
+| Integrations | Composio plus the local connector contract |
+| LLM gateway | OpenRouter through the Vercel AI SDK |
+| Embeddings | OpenAI `text-embedding-3-large`, 1536 dims |
+| Reranking | Cohere Rerank 3.5 |
+| Cache | Upstash Redis semantic cache and circuit-breaker state |
+| Personalization | Supermemory, scoped by tenant container |
+| Observability | Langfuse traces plus Sentry reporting |
+| Speech to text | Deepgram Nova-3 planned for diarized audio ingestion |
 
 <br />
 
-## Where things live
+## Security Model
 
-```
-app/        Next.js routes. api/answer streams the cited answer.
+The primary security boundary is architectural: the answer-time model is read-only.
+
+- Retrieved content is data, not instructions.
+- The synthesis model has no source tools and no side-effecting tools.
+- Every Supabase query is tenant-scoped by `user_id`; RLS is defense in depth.
+- Webhooks use HMAC verification where event-mode ingestion is present.
+- The retrieval rail drops distant chunks and caps context size before synthesis.
+- API keys live in `.env.local`; the repo ships only `.env.example`.
+
+<br />
+
+## Design Tradeoffs Reviewers Should Know
+
+| Tradeoff | Decision |
+| --- | --- |
+| Context engine vs live tool chatbot | Build the engine. Answer path reads Postgres only. |
+| Composio vs Nango | Use Composio for 48-hour OAuth velocity, keep a local connector seam for a future Nango swap. |
+| Exact KNN vs approximate HNSW at this scale | `hybrid_search()` does exact KNN over the filtered tenant set. HNSW is present for scale, not assumed in the core ranking path. |
+| Postgres graph vs graph database | Use `entity` and `edge` tables. The founder graph is small enough for Postgres and keeps tenancy simple. |
+| Supermemory vs hand-rolled profile table | Use Supermemory for Layer 3 personalization while keeping Layers 1 and 2 fully owned. |
+| Raw JSONB vs object storage | Store raw source payloads in Postgres for the take-home; object storage is the production tiering lever. |
+
+Deeper rationale lives in [docs/Architecture.md](docs/Architecture.md), [docs/spec.md](docs/spec.md), and [docs/trade-offs.md](docs/trade-offs.md).
+
+<br />
+
+## Repository Map
+
+```text
+app/
+  api/answer/        streamed answer path
+  api/connect/       source connection entrypoints
+  api/webhooks/      event-mode ingestion webhooks
+  (app)/             Today, Ask, Search, Relationships
+
 lib/
-  connectors/   one file per source, all implement Connector
-  ingestion/    normalize, chunk, enrich, embed
-  retrieval/    plan, search, graph-expand, rollup, assemble, synthesize
-  graph/        entity resolution + triple extraction (Layer 2)
-  llm/          OpenRouter gateway
-supabase/   numbered SQL migrations, including hybrid_search()
-trigger/    background ingestion jobs
-prompts/    the query-understanding and synthesis prompts
+  connectors/        Gmail, Calendar, Linear, Slack, Notion connector contract implementations
+  ingestion/         normalize, chunk, enrich, embed, upsert
+  retrieval/         plan, search, graph expand, rerank, rail, rollup, assemble, synthesize
+  graph/             entity resolution and triple extraction
+  cache/             Redis semantic cache
+  llm/               OpenRouter gateway, retry, fallback, circuit breaker
+  personalization/   Supermemory Layer 3
+
+supabase/
+  migrations/        context schema, graph schema, hybrid_search(), source state
+
+trigger/
+  ingest, poll, slim, personalization jobs
+
+prompts/
+  query understanding and answer synthesis prompts
+
+docs/
+  Architecture.md    full system design reference
+  SETUP.md           local and credential setup
+  trade-offs.md      implementation decisions and live verification notes
 ```
+
+<br />
+
+## Read More
+
+- [Architecture](docs/Architecture.md): system design, data model, retrieval pipeline, prompts, resilience.
+- [Setup](docs/SETUP.md): credential tiers and Supabase setup.
+- [Spec](docs/spec.md): phased build plan and acceptance gates.
+- [Tradeoffs](docs/trade-offs.md): implementation decisions, known risks, live verification notes.
+- [Phase 6 UI Tradeoffs](docs/phase6-trade-offs.md): product and interface decisions.
+
+<br />
+
+## Submission Checklist
+
+- [x] Stored-context answer path.
+- [x] Real integrations for Gmail, Google Calendar, and Linear.
+- [x] Connector implementations for Slack and Notion.
+- [x] Relationship graph layer.
+- [x] Supermemory personalization layer.
+- [x] Semantic cache, fallback, and graceful degradation paths.
+- [x] `.env.example` with variable names only.
+- [x] README with setup, architecture, source status, and demo questions.
+- [ ] Hosted URL and Traces link added before final submission.
