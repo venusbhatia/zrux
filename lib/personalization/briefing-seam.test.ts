@@ -35,6 +35,7 @@ function item(): RolledItem {
     status: null,
     best_content: 'Sarah sent the revised term sheet.',
     score: 0.9,
+    rerank_score: 0,
   }
 }
 

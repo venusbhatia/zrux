@@ -25,6 +25,12 @@ export function BriefCard({ card }: { card: TodayCard }) {
           >
             {card.tag}
           </span>
+          <span
+            className="ml-auto inline-flex flex-none items-center rounded-pill border border-hairline px-2 py-[3px] text-[11px] font-semibold tabular-nums text-muted"
+            title="Retrieval confidence: how strongly this matched your connected tools"
+          >
+            {card.confidence}%
+          </span>
         </div>
         <p className="mt-1.5 text-sm leading-[1.5] text-[#46464a]">{card.body}</p>
         <div className="mt-3 flex flex-wrap gap-[7px]">

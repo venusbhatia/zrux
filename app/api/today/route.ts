@@ -17,6 +17,7 @@ import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { todayResponseSchema, type TodayCard, type TodayResponse } from '@/lib/api/today-schema'
 import { z } from 'zod'
 import type { Citation } from '@/lib/retrieval/types'
+import { matchPercent } from '@/lib/retrieval/relevance'
 
 type ModelCard = z.infer<typeof todayResponseSchema>['cards'][number]
 
@@ -40,21 +41,25 @@ Rules:
 // valid ref are dropped.
 function groundCards(cards: ModelCard[], citations: Citation[]): TodayCard[] {
   const byN = new Map(citations.map((c) => [c.n, c]))
+  // Normalize each card's confidence against the strongest item in the brief.
+  const topScore = citations.length > 0 ? Math.max(...citations.map((c) => c.score)) : 1
   const grounded: TodayCard[] = []
   for (const card of cards) {
-    const refs = card.refs
-      .filter((r) => byN.has(r.n))
-      .map((r) => {
-        const c = byN.get(r.n)!
-        return {
-          item_id: c.item_id,
-          label: r.label?.trim() || c.title || c.source,
-          source: c.source,
-          url: c.url,
-        }
-      })
+    const valid = card.refs.filter((r) => byN.has(r.n))
+    const refs = valid.map((r) => {
+      const c = byN.get(r.n)!
+      return {
+        item_id: c.item_id,
+        label: r.label?.trim() || c.title || c.source,
+        source: c.source,
+        url: c.url,
+      }
+    })
     if (refs.length === 0) continue
-    grounded.push({ ...card, refs })
+    // Confidence = match % of the best-matching item this card cites. Derived from
+    // real citation scores, never from the model.
+    const best = Math.max(...valid.map((r) => byN.get(r.n)!.score))
+    grounded.push({ ...card, refs, confidence: matchPercent(best, topScore) })
   }
   return grounded
 }

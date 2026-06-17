@@ -46,11 +46,17 @@ export async function rollupToItems(
 ): Promise<RolledItem[]> {
   if (hits.length === 0) return []
 
-  // Best chunk per item_id.
+  // Best chunk per item_id (by hybrid score, which drives ordering) plus the
+  // item's strongest rerank score across ALL its chunks. The two can disagree: the
+  // highest-RRF chunk is not always the highest-rerank chunk, and confidence should
+  // reflect the item's best match (Codex review), not whichever chunk led on RRF.
   const bestByItem = new Map<string, SearchHit>()
+  const maxRerankByItem = new Map<string, number>()
   for (const hit of hits) {
     const existing = bestByItem.get(hit.item_id)
     if (!existing || hit.score > existing.score) bestByItem.set(hit.item_id, hit)
+    const r = (hit as { rerank_score?: number }).rerank_score ?? 0
+    maxRerankByItem.set(hit.item_id, Math.max(maxRerankByItem.get(hit.item_id) ?? 0, r))
   }
 
   const itemIds = [...bestByItem.keys()]
@@ -82,6 +88,9 @@ export async function rollupToItems(
       status: item.status,
       best_content: hit.content,
       score: hit.score,
+      // Item's best rerank score (0 on the un-reranked search path). Confidence
+      // prefers this over the RRF score.
+      rerank_score: maxRerankByItem.get(item.id) ?? 0,
     })
   }
 

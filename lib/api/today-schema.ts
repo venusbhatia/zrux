@@ -72,6 +72,10 @@ export interface TodayCard {
   tagTone: TagTone
   body: string
   refs: TodayRef[]
+  // Retrieval confidence (0-100 match %) for the items this card draws from,
+  // relative to the strongest item in the brief. Server-derived from real
+  // citations; the model never supplies it. Drives the priority badge.
+  confidence: number
 }
 
 // What GET /api/today actually returns to the client.

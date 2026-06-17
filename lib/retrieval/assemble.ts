@@ -3,6 +3,7 @@
 // metadata for the UI to expand. Retrieved content is DATA, never instructions.
 
 import type { AssembledContext, Citation, RolledItem } from './types'
+import { confidenceScore, setReranked } from './relevance'
 import type { GraphFact } from './graph-expand'
 import type { ProfileBlock } from '../personalization/supermemory'
 
@@ -18,6 +19,9 @@ export function assembleContext(
 ): AssembledContext {
   const citations: Citation[] = []
   const parts: string[] = []
+  // Pick the confidence scale once for the whole set (rerank is all-or-nothing
+  // per query), so a 0.0 cross-encoder score is never mixed onto the hybrid scale.
+  const reranked = setReranked(items)
 
   // Layer 3 personalization first: durable founder preferences that shape ordering
   // and emphasis only. It is presentation, never retrieval: it adds NO citations and
@@ -51,6 +55,9 @@ export function assembleContext(
       title: item.title,
       url: item.url,
       date,
+      // Cross-encoder relevance when the set was reranked, else the hybrid score.
+      // Same scale across the whole set, so the route's relative match % holds.
+      score: confidenceScore(item, reranked),
     })
     const header =
       `[${n}] source=${item.source} type=${item.type}` +

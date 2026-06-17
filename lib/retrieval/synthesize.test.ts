@@ -15,6 +15,7 @@ const citation: Citation = {
   title: 'Term sheet',
   url: null,
   date: '2026-06-14',
+  score: 0.9,
 }
 
 describe('isThin', () => {
