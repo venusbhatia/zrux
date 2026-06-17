@@ -32,6 +32,9 @@ export default function RelationshipsPage() {
   const [data, setData] = useState<RIResponse | null>(null)
   const [error, setError] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
+
+  const TOP_N = 15
 
   useEffect(() => {
     let alive = true
@@ -121,7 +124,7 @@ export default function RelationshipsPage() {
             <span className="text-[11px] text-hint">strength</span>
           </div>
           <div className="flex flex-col">
-            {data.contacts.map((c) => (
+            {(showAll ? data.contacts : data.contacts.slice(0, TOP_N)).map((c) => (
               <button
                 key={c.email}
                 onClick={() => setSelected(c.email)}
@@ -166,6 +169,16 @@ export default function RelationshipsPage() {
               </button>
             ))}
           </div>
+          {data.contacts.length > TOP_N && (
+            <button
+              onClick={() => setShowAll((v) => !v)}
+              className="mt-2 self-center text-[12.5px] font-medium text-accent hover:underline"
+            >
+              {showAll
+                ? 'Show less'
+                : `Show ${data.contacts.length - TOP_N} more (mostly newsletters)`}
+            </button>
+          )}
         </div>
 
         {/* Supporting: you-centered strength graph + detail */}
