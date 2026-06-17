@@ -1,149 +1,207 @@
-<svg width="1800" height="720" viewBox="0 0 1800 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">zrux architecture and data flow</title>
-  <desc id="desc">Data sources flow through Composio and Trigger.dev ingestion into Supabase Postgres and pgvector. The serving plane retrieves from storage, expands graph context, fetches personalization, generates through OpenRouter, and traces every call.</desc>
+<svg width="1900" height="1040" viewBox="0 0 1900 1040" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">zrux current architecture</title>
+  <desc id="desc">A current architecture map showing product surfaces, source connections, active connectors, Trigger.dev ingestion, Supabase storage, read APIs, preference memory, OpenRouter synthesis, Langfuse, and Sentry.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M1 1L9 5L1 9V1Z" fill="#A8A8A8"/>
+      <path d="M1 1L9 5L1 9V1Z" fill="#9C9A96"/>
     </marker>
-    <filter id="softShadow" x="-20%" y="-25%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#8C8C8C" flood-opacity="0.13"/>
+    <filter id="shadow" x="-20%" y="-25%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#777777" flood-opacity="0.12"/>
     </filter>
     <style>
       .plane { fill: #CC7659; }
-      .box { fill: #F8F7F4; stroke: #D8D6D1; stroke-width: 1.2; }
-      .store { fill: #F8F7F4; stroke: #D8D6D1; stroke-width: 1.2; }
-      .label { font: 600 15px Arial, Helvetica, sans-serif; fill: #242424; letter-spacing: 0; }
-      .small { font: 500 13px Arial, Helvetica, sans-serif; fill: #343434; letter-spacing: 0; }
-      .tiny { font: 500 12px Arial, Helvetica, sans-serif; fill: #545454; letter-spacing: 0; }
-      .plane-title { font: 700 15px Arial, Helvetica, sans-serif; fill: #397FA8; letter-spacing: 0; }
+      .box { fill: #FBFAF7; stroke: #D8D5CF; stroke-width: 1.2; }
+      .store { fill: #FBFAF7; stroke: #D8D5CF; stroke-width: 1.2; }
       .note { fill: #F5EEE9; }
-      .line { stroke: #A8A8A8; stroke-width: 1.35; marker-end: url(#arrow); }
-      .dash { stroke: #A8A8A8; stroke-width: 1.35; stroke-dasharray: 5 5; marker-end: url(#arrow); }
-      .thin { stroke: #B8B8B8; stroke-width: 1.1; marker-end: url(#arrow); }
+      .line { stroke: #9C9A96; stroke-width: 1.35; marker-end: url(#arrow); }
+      .dash { stroke: #9C9A96; stroke-width: 1.35; stroke-dasharray: 5 5; marker-end: url(#arrow); }
+      .plain { stroke: #B5B2AD; stroke-width: 1.1; marker-end: url(#arrow); }
+      .title { font: 700 15px Arial, Helvetica, sans-serif; fill: #347EA7; letter-spacing: 0; }
+      .label { font: 600 14px Arial, Helvetica, sans-serif; fill: #242424; letter-spacing: 0; }
+      .small { font: 500 12px Arial, Helvetica, sans-serif; fill: #343434; letter-spacing: 0; }
+      .tiny { font: 500 11px Arial, Helvetica, sans-serif; fill: #545454; letter-spacing: 0; }
     </style>
   </defs>
 
-  <rect width="1800" height="720" fill="#FFFFFF"/>
+  <rect width="1900" height="1040" fill="#FFFFFF"/>
 
-  <rect x="40" y="50" width="1160" height="104" class="plane"/>
-  <text x="600" y="73" text-anchor="middle" class="plane-title">Data Sources</text>
+  <rect x="40" y="48" width="620" height="136" class="plane"/>
+  <text x="350" y="72" text-anchor="middle" class="title">Product surfaces</text>
+  <rect x="72" y="92" width="82" height="38" class="box"/>
+  <text x="113" y="116" text-anchor="middle" class="label">Today</text>
+  <rect x="178" y="92" width="82" height="38" class="box"/>
+  <text x="219" y="116" text-anchor="middle" class="label">Ask</text>
+  <rect x="284" y="92" width="82" height="38" class="box"/>
+  <text x="325" y="116" text-anchor="middle" class="label">Search</text>
+  <rect x="390" y="92" width="120" height="38" class="box"/>
+  <text x="450" y="116" text-anchor="middle" class="label">Relationships</text>
+  <rect x="72" y="138" width="120" height="34" class="box"/>
+  <text x="132" y="160" text-anchor="middle" class="small">Connections</text>
+  <rect x="216" y="138" width="118" height="34" class="box"/>
+  <text x="275" y="160" text-anchor="middle" class="small">Preferences</text>
 
-  <rect x="65" y="82" width="72" height="36" class="box"/>
-  <text x="101" y="105" text-anchor="middle" class="small">Gmail</text>
-  <rect x="205" y="82" width="90" height="36" class="box"/>
-  <text x="250" y="105" text-anchor="middle" class="small">Calendar</text>
-  <rect x="350" y="82" width="78" height="36" class="box"/>
-  <text x="389" y="105" text-anchor="middle" class="small">Linear</text>
-  <rect x="492" y="82" width="74" height="36" class="box"/>
-  <text x="529" y="105" text-anchor="middle" class="small">Slack</text>
-  <rect x="635" y="82" width="78" height="36" class="box"/>
-  <text x="674" y="105" text-anchor="middle" class="small">Notion</text>
-  <rect x="775" y="82" width="82" height="36" class="box"/>
-  <text x="816" y="105" text-anchor="middle" class="small">GitHub</text>
-  <rect x="920" y="82" width="80" height="36" class="box"/>
-  <text x="960" y="105" text-anchor="middle" class="small">Sentry</text>
-  <rect x="1036" y="82" width="140" height="36" class="box"/>
-  <text x="1106" y="105" text-anchor="middle" class="small">Voice memos / audio</text>
+  <rect x="720" y="48" width="470" height="136" class="plane"/>
+  <text x="955" y="72" text-anchor="middle" class="title">Connection plane</text>
+  <rect x="746" y="96" width="138" height="42" class="box"/>
+  <text x="815" y="113" text-anchor="middle" class="small">/api/connect</text>
+  <text x="815" y="128" text-anchor="middle" class="tiny">[source]</text>
+  <rect x="914" y="96" width="126" height="42" class="box"/>
+  <text x="977" y="122" text-anchor="middle" class="small">Composio OAuth</text>
+  <rect x="1070" y="96" width="96" height="42" class="box"/>
+  <text x="1118" y="113" text-anchor="middle" class="small">OAuth</text>
+  <text x="1118" y="128" text-anchor="middle" class="tiny">callback</text>
 
-  <rect x="466" y="232" width="96" height="45" class="box" filter="url(#softShadow)"/>
-  <text x="514" y="260" text-anchor="middle" class="small">Composio</text>
+  <rect x="1248" y="48" width="610" height="136" class="plane"/>
+  <text x="1553" y="72" text-anchor="middle" class="title">Active source connectors</text>
+  <rect x="1288" y="104" width="86" height="38" class="box"/>
+  <text x="1331" y="128" text-anchor="middle" class="label">Gmail</text>
+  <rect x="1404" y="104" width="114" height="38" class="box"/>
+  <text x="1461" y="128" text-anchor="middle" class="label">Calendar</text>
+  <rect x="1548" y="104" width="86" height="38" class="box"/>
+  <text x="1591" y="128" text-anchor="middle" class="label">Linear</text>
+  <rect x="1664" y="104" width="86" height="38" class="box"/>
+  <text x="1707" y="128" text-anchor="middle" class="label">Slack</text>
+  <rect x="1772" y="104" width="70" height="38" class="box"/>
+  <text x="1807" y="128" text-anchor="middle" class="label">Notion</text>
 
-  <rect x="1018" y="220" width="136" height="58" class="box" filter="url(#softShadow)"/>
-  <text x="1086" y="243" text-anchor="middle" class="small">Deepgram STT</text>
-  <text x="1086" y="260" text-anchor="middle" class="tiny">diarized transcript</text>
+  <rect x="210" y="268" width="520" height="196" class="plane"/>
+  <text x="470" y="292" text-anchor="middle" class="title">Ingestion plane - Trigger.dev v4</text>
+  <rect x="240" y="318" width="128" height="44" class="box"/>
+  <text x="304" y="336" text-anchor="middle" class="small">ingest-source</text>
+  <text x="304" y="351" text-anchor="middle" class="tiny">load / poll / event</text>
+  <rect x="394" y="318" width="128" height="44" class="box"/>
+  <text x="458" y="336" text-anchor="middle" class="small">poll-sources</text>
+  <text x="458" y="351" text-anchor="middle" class="tiny">every 30 min</text>
+  <rect x="548" y="318" width="128" height="44" class="box"/>
+  <text x="612" y="336" text-anchor="middle" class="small">slim-sources</text>
+  <text x="612" y="351" text-anchor="middle" class="tiny">every 6 hours</text>
+  <rect x="266" y="392" width="170" height="44" class="box"/>
+  <text x="351" y="410" text-anchor="middle" class="small">normalize, chunk</text>
+  <text x="351" y="425" text-anchor="middle" class="tiny">enrich + embed</text>
+  <rect x="472" y="392" width="178" height="44" class="box"/>
+  <text x="561" y="410" text-anchor="middle" class="small">relationship</text>
+  <text x="561" y="425" text-anchor="middle" class="tiny">extraction + cleanup</text>
 
-  <rect x="682" y="322" width="118" height="58" class="box" filter="url(#softShadow)"/>
-  <text x="741" y="346" text-anchor="middle" class="small">Ingestion Jobs</text>
-  <text x="741" y="363" text-anchor="middle" class="tiny">Trigger.dev</text>
+  <rect x="780" y="264" width="640" height="214" class="plane"/>
+  <text x="1100" y="288" text-anchor="middle" class="title">Supabase Postgres + pgvector</text>
 
-  <rect x="625" y="462" width="710" height="116" class="plane"/>
-  <text x="980" y="481" text-anchor="middle" class="plane-title">Supabase - Postgres + pgvector</text>
+  <path d="M820 330C820 319 850 312 888 312C926 312 956 319 956 330V374C956 385 926 392 888 392C850 392 820 385 820 374V330Z" class="store" filter="url(#shadow)"/>
+  <path d="M820 330C820 341 850 348 888 348C926 348 956 341 956 330" stroke="#D8D5CF" stroke-width="1.2"/>
+  <text x="888" y="352" text-anchor="middle" class="small">context_item</text>
+  <text x="888" y="368" text-anchor="middle" class="tiny">raw + metadata</text>
 
-  <path d="M680 494C680 482 712 474 754 474C796 474 828 482 828 494V548C828 560 796 568 754 568C712 568 680 560 680 548V494Z" class="store" filter="url(#softShadow)"/>
-  <path d="M680 494C680 506 712 514 754 514C796 514 828 506 828 494" stroke="#D8D6D1" stroke-width="1.2"/>
-  <text x="754" y="514" text-anchor="middle" class="small">Layer 1: Context Engine</text>
-  <text x="754" y="532" text-anchor="middle" class="tiny">context_item</text>
-  <text x="754" y="548" text-anchor="middle" class="tiny">context_chunk</text>
+  <path d="M982 330C982 319 1012 312 1050 312C1088 312 1118 319 1118 330V374C1118 385 1088 392 1050 392C1012 392 982 385 982 374V330Z" class="store" filter="url(#shadow)"/>
+  <path d="M982 330C982 341 1012 348 1050 348C1088 348 1118 341 1118 330" stroke="#D8D5CF" stroke-width="1.2"/>
+  <text x="1050" y="352" text-anchor="middle" class="small">context_chunk</text>
+  <text x="1050" y="368" text-anchor="middle" class="tiny">vectors + FTS</text>
 
-  <path d="M1148 494C1148 482 1180 474 1222 474C1264 474 1296 482 1296 494V548C1296 560 1264 568 1222 568C1180 568 1148 560 1148 548V494Z" class="store" filter="url(#softShadow)"/>
-  <path d="M1148 494C1148 506 1180 514 1222 514C1264 514 1296 506 1296 494" stroke="#D8D6D1" stroke-width="1.2"/>
-  <text x="1222" y="514" text-anchor="middle" class="small">Layer 2: Relationship Graph</text>
-  <text x="1222" y="532" text-anchor="middle" class="tiny">entity / edge</text>
+  <path d="M1144 330C1144 319 1174 312 1212 312C1250 312 1280 319 1280 330V374C1280 385 1250 392 1212 392C1174 392 1144 385 1144 374V330Z" class="store" filter="url(#shadow)"/>
+  <path d="M1144 330C1144 341 1174 348 1212 348C1250 348 1280 341 1280 330" stroke="#D8D5CF" stroke-width="1.2"/>
+  <text x="1212" y="352" text-anchor="middle" class="small">entity + edge</text>
+  <text x="1212" y="368" text-anchor="middle" class="tiny">relationship graph</text>
 
-  <rect x="1180" y="200" width="600" height="160" class="plane"/>
-  <text x="1480" y="223" text-anchor="middle" class="plane-title">Serving Plane</text>
-  <rect x="1210" y="242" width="130" height="40" class="box"/>
-  <text x="1275" y="267" text-anchor="middle" class="small">Next.js Web Chat</text>
-  <rect x="1634" y="242" width="112" height="40" class="box"/>
-  <text x="1690" y="267" text-anchor="middle" class="small">Telegram Bot</text>
-  <rect x="1354" y="318" width="150" height="58" class="box" filter="url(#softShadow)"/>
-  <text x="1429" y="342" text-anchor="middle" class="small">Retrieval + Synthesis</text>
-  <text x="1429" y="359" text-anchor="middle" class="tiny">Vercel AI SDK</text>
+  <path d="M860 430C860 420 892 413 932 413C972 413 1004 420 1004 430V452C1004 462 972 469 932 469C892 469 860 462 860 452V430Z" class="store" filter="url(#shadow)"/>
+  <path d="M860 430C860 440 892 447 932 447C972 447 1004 440 1004 430" stroke="#D8D5CF" stroke-width="1.2"/>
+  <text x="932" y="450" text-anchor="middle" class="small">source_connection</text>
 
-  <path d="M1360 494C1360 482 1392 474 1434 474C1476 474 1508 482 1508 494V548C1508 560 1476 568 1434 568C1392 568 1360 560 1360 548V494Z" class="store" filter="url(#softShadow)"/>
-  <path d="M1360 494C1360 506 1392 514 1434 514C1476 514 1508 506 1508 494" stroke="#D8D6D1" stroke-width="1.2"/>
-  <text x="1434" y="514" text-anchor="middle" class="small">Layer 3: Personalization</text>
-  <text x="1434" y="532" text-anchor="middle" class="tiny">Supermemory</text>
+  <path d="M1042 430C1042 420 1074 413 1114 413C1154 413 1186 420 1186 430V452C1186 462 1154 469 1114 469C1074 469 1042 462 1042 452V430Z" class="store" filter="url(#shadow)"/>
+  <path d="M1042 430C1042 440 1074 447 1114 447C1154 447 1186 440 1186 430" stroke="#D8D5CF" stroke-width="1.2"/>
+  <text x="1114" y="450" text-anchor="middle" class="small">sync checkpoint</text>
 
-  <rect x="1542" y="520" width="158" height="40" class="box"/>
-  <text x="1621" y="545" text-anchor="middle" class="small">OpenRouter + fallback</text>
-  <rect x="1720" y="520" width="70" height="40" class="box"/>
-  <text x="1755" y="545" text-anchor="middle" class="small">Langfuse</text>
+  <rect x="270" y="568" width="820" height="270" class="plane"/>
+  <text x="680" y="592" text-anchor="middle" class="title">Read plane - Next.js API</text>
+  <rect x="306" y="620" width="96" height="40" class="box"/>
+  <text x="354" y="645" text-anchor="middle" class="small">/api/answer</text>
+  <rect x="426" y="620" width="86" height="40" class="box"/>
+  <text x="469" y="645" text-anchor="middle" class="small">/api/today</text>
+  <rect x="536" y="620" width="92" height="40" class="box"/>
+  <text x="582" y="645" text-anchor="middle" class="small">/api/search</text>
+  <rect x="652" y="620" width="88" height="40" class="box"/>
+  <text x="696" y="645" text-anchor="middle" class="small">/api/graph</text>
+  <rect x="764" y="620" width="112" height="40" class="box"/>
+  <text x="820" y="645" text-anchor="middle" class="small">/api/remember</text>
 
-  <rect x="34" y="178" width="112" height="20" class="note"/>
-  <text x="90" y="193" text-anchor="middle" class="tiny">managed OAuth + fetch</text>
-  <rect x="178" y="178" width="112" height="20" class="note"/>
-  <text x="234" y="193" text-anchor="middle" class="tiny">managed OAuth + fetch</text>
-  <rect x="322" y="178" width="112" height="20" class="note"/>
-  <text x="378" y="193" text-anchor="middle" class="tiny">managed OAuth + fetch</text>
-  <rect x="466" y="178" width="112" height="20" class="note"/>
-  <text x="522" y="193" text-anchor="middle" class="tiny">managed OAuth + fetch</text>
-  <rect x="610" y="178" width="112" height="20" class="note"/>
-  <text x="666" y="193" text-anchor="middle" class="tiny">managed OAuth + fetch</text>
-  <rect x="754" y="178" width="112" height="20" class="note"/>
-  <text x="810" y="193" text-anchor="middle" class="tiny">managed OAuth + fetch</text>
-  <rect x="898" y="178" width="112" height="20" class="note"/>
-  <text x="954" y="193" text-anchor="middle" class="tiny">managed OAuth + fetch</text>
-  <rect x="1065" y="178" width="62" height="20" class="note"/>
-  <text x="1096" y="193" text-anchor="middle" class="tiny">raw audio</text>
+  <rect x="314" y="704" width="112" height="44" class="box"/>
+  <text x="370" y="722" text-anchor="middle" class="small">semantic cache</text>
+  <text x="370" y="737" text-anchor="middle" class="tiny">Upstash Redis</text>
+  <rect x="456" y="704" width="130" height="44" class="box"/>
+  <text x="521" y="722" text-anchor="middle" class="small">query planning</text>
+  <text x="521" y="737" text-anchor="middle" class="tiny">meeting prep</text>
+  <rect x="616" y="704" width="130" height="44" class="box"/>
+  <text x="681" y="722" text-anchor="middle" class="small">hybrid search</text>
+  <text x="681" y="737" text-anchor="middle" class="tiny">graph expand</text>
+  <rect x="776" y="704" width="130" height="44" class="box"/>
+  <text x="841" y="722" text-anchor="middle" class="small">Cohere rerank</text>
+  <text x="841" y="737" text-anchor="middle" class="tiny">retrieval rail</text>
+  <rect x="936" y="704" width="116" height="44" class="box"/>
+  <text x="994" y="722" text-anchor="middle" class="small">rollup</text>
+  <text x="994" y="737" text-anchor="middle" class="tiny">citations</text>
+  <rect x="576" y="778" width="150" height="44" class="box"/>
+  <text x="651" y="796" text-anchor="middle" class="small">OpenRouter</text>
+  <text x="651" y="811" text-anchor="middle" class="tiny">streamed synthesis</text>
 
-  <rect x="620" y="414" width="132" height="21" class="note"/>
-  <text x="686" y="429" text-anchor="middle" class="tiny">normalize, enrich, embed</text>
-  <rect x="1080" y="414" width="142" height="34" class="note"/>
-  <text x="1151" y="428" text-anchor="middle" class="tiny">extract typed triples</text>
-  <text x="1151" y="443" text-anchor="middle" class="tiny">+ speakers</text>
-  <rect x="1244" y="414" width="96" height="21" class="note"/>
-  <text x="1292" y="429" text-anchor="middle" class="tiny">graph expand</text>
-  <rect x="1392" y="414" width="84" height="21" class="note"/>
-  <text x="1434" y="429" text-anchor="middle" class="tiny">fetch profile</text>
-  <rect x="1593" y="414" width="58" height="21" class="note"/>
-  <text x="1622" y="429" text-anchor="middle" class="tiny">generate</text>
-  <rect x="1706" y="414" width="98" height="21" class="note"/>
-  <text x="1755" y="429" text-anchor="middle" class="tiny">trace every call</text>
-  <rect x="1018" y="392" width="92" height="21" class="note"/>
-  <text x="1064" y="407" text-anchor="middle" class="tiny">hybrid retrieve</text>
+  <rect x="1160" y="568" width="250" height="118" class="plane"/>
+  <text x="1285" y="592" text-anchor="middle" class="title">Preference memory</text>
+  <path d="M1210 632C1210 621 1242 614 1284 614C1326 614 1358 621 1358 632V660C1358 671 1326 678 1284 678C1242 678 1210 671 1210 660V632Z" class="store" filter="url(#shadow)"/>
+  <path d="M1210 632C1210 643 1242 650 1284 650C1326 650 1358 643 1358 632" stroke="#D8D5CF" stroke-width="1.2"/>
+  <text x="1284" y="653" text-anchor="middle" class="small">Supermemory</text>
 
-  <path d="M101 118C101 203 318 232 464 252" class="thin"/>
-  <path d="M250 118C250 205 364 228 464 250" class="thin"/>
-  <path d="M389 118C389 190 420 218 466 244" class="thin"/>
-  <path d="M529 118V230" class="thin"/>
-  <path d="M674 118C674 194 616 226 564 246" class="thin"/>
-  <path d="M816 118C816 204 640 232 564 252" class="thin"/>
-  <path d="M960 118C960 210 670 234 564 256" class="thin"/>
-  <path d="M1106 118V218" class="thin"/>
-  <path d="M1086 278C1086 326 940 330 801 346" class="thin"/>
-  <path d="M562 255C580 294 640 314 682 338" class="line"/>
-  <path d="M741 380C711 404 702 436 718 472" class="line"/>
-  <path d="M800 356C982 374 1082 405 1196 472" class="line"/>
-  <path d="M1354 348C1174 364 998 392 829 512" class="line"/>
-  <path d="M1354 356C1300 370 1284 420 1248 474" class="line"/>
-  <path d="M1429 376V472" class="line"/>
-  <path d="M1504 356C1574 382 1618 434 1621 520" class="line"/>
-  <path d="M1504 348C1630 362 1740 418 1755 520" class="dash"/>
-  <path d="M1275 282C1275 314 1320 326 1354 334" class="line"/>
-  <path d="M1690 282C1690 318 1570 330 1504 338" class="line"/>
-  <path d="M1222 474C1184 418 1108 394 800 360" class="thin"/>
+  <rect x="1468" y="568" width="350" height="118" class="plane"/>
+  <text x="1643" y="592" text-anchor="middle" class="title">Observability</text>
+  <rect x="1510" y="626" width="116" height="40" class="box"/>
+  <text x="1568" y="651" text-anchor="middle" class="small">Langfuse</text>
+  <rect x="1660" y="626" width="102" height="40" class="box"/>
+  <text x="1711" y="651" text-anchor="middle" class="small">Sentry</text>
 
-  <text x="40" y="664" class="tiny">Read path invariant: serving reads stored context from Postgres and profile memory only. It never calls Gmail, Linear, Slack, Notion, GitHub, Sentry, or Calendar at answer time.</text>
-  <text x="40" y="690" class="tiny">Ingestion path invariant: durable jobs own source fetch, raw payload persistence, embeddings, graph extraction, and deletion detection.</text>
+  <rect x="1230" y="268" width="120" height="34" class="note"/>
+  <text x="1290" y="290" text-anchor="middle" class="tiny">connection state</text>
+  <rect x="1264" y="402" width="98" height="34" class="note"/>
+  <text x="1313" y="424" text-anchor="middle" class="tiny">sync checkpoint</text>
+  <rect x="1666" y="196" width="104" height="30" class="note"/>
+  <text x="1718" y="215" text-anchor="middle" class="tiny">real-time Slack</text>
+  <rect x="576" y="488" width="168" height="30" class="note"/>
+  <text x="660" y="507" text-anchor="middle" class="tiny">relationship extraction</text>
+
+  <path d="M132 172C132 238 190 300 240 332" class="plain"/>
+  <path d="M219 130C310 210 488 248 548 318" class="plain"/>
+  <path d="M325 130C420 206 592 246 652 318" class="plain"/>
+  <path d="M450 130C540 212 650 448 652 620" class="plain"/>
+  <path d="M275 172C440 260 752 570 782 620" class="plain"/>
+  <path d="M815 138H914" class="line"/>
+  <path d="M1040 117H1070" class="line"/>
+  <path d="M1118 138C1118 202 1026 370 956 430" class="line"/>
+  <path d="M932 413C880 316 682 296 368 336" class="line"/>
+  <path d="M1331 142C1160 220 820 250 368 336" class="plain"/>
+  <path d="M1461 142C1266 218 906 252 522 336" class="plain"/>
+  <path d="M1591 142C1354 220 946 254 522 336" class="plain"/>
+  <path d="M1707 142C1510 226 1110 260 676 336" class="plain"/>
+  <path d="M1807 142C1600 228 1118 260 676 336" class="plain"/>
+  <path d="M1707 142C1712 168 1718 180 1718 196" class="line"/>
+  <path d="M1666 211C1180 222 762 278 368 392" class="line"/>
+  <path d="M304 362L336 392" class="line"/>
+  <path d="M458 362L372 392" class="line"/>
+  <path d="M612 362C658 386 860 408 1042 430" class="line"/>
+  <path d="M351 436C438 490 696 396 820 374" class="line"/>
+  <path d="M351 436C474 512 820 404 982 374" class="line"/>
+  <path d="M561 436C696 498 1040 410 1144 374" class="line"/>
+  <path d="M354 660L370 704" class="line"/>
+  <path d="M370 748H456" class="line"/>
+  <path d="M521 748H616" class="line"/>
+  <path d="M681 748H776" class="line"/>
+  <path d="M841 748H936" class="line"/>
+  <path d="M994 748C954 794 774 800 726 800" class="line"/>
+  <path d="M469 660C492 678 510 690 521 704" class="plain"/>
+  <path d="M582 660C612 680 642 690 681 704" class="plain"/>
+  <path d="M696 660C860 646 1108 516 1212 392" class="plain"/>
+  <path d="M820 660C986 648 1138 678 1210 660" class="plain"/>
+  <path d="M681 704C768 570 930 460 1050 392" class="line"/>
+  <path d="M681 704C790 566 1080 464 1212 392" class="line"/>
+  <path d="M994 704C954 596 902 492 888 392" class="line"/>
+  <path d="M521 704C654 620 1110 620 1210 646" class="line"/>
+  <path d="M651 778C770 676 1362 646 1510 646" class="dash"/>
+  <path d="M651 778C856 744 1538 672 1660 646" class="dash"/>
+
+  <text x="48" y="932" class="tiny">Current-source boundary: Gmail, Calendar, Linear, Slack, and Notion are active connectors. GitHub, Drive, and audio are extension paths, not active source boxes in this map.</text>
+  <text x="48" y="956" class="tiny">Read-path boundary: answers, briefs, search, and relationships read stored context, graph rows, cache, and preference memory. Source APIs are not called during synthesis.</text>
+  <text x="48" y="980" class="tiny">Relationship boundary: Gmail, Calendar, Linear, Notion, and meetings can shape the relationship graph. Slack remains searchable context, but casual chat is not turned into relationship edges.</text>
 </svg>
