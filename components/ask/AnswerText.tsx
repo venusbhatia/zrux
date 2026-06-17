@@ -45,25 +45,24 @@ export function AnswerText({
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) parts.push(<Fragment key={key++}>{text.slice(last, m.index)}</Fragment>)
     const nums = [...m[0].matchAll(/\[(\d+)\]/g)].map((x) => Number(x[1]))
-    const cited = nums.map((n) => byNum.get(n)).filter((c): c is SourceCitation => Boolean(c))
-    if (cited.length > 0) {
-      // Dedupe by source so two chunks from the same email show one Gmail pill, not
-      // two. Keep the lowest citation number as the click target for each source.
-      const seen = new Set<string>()
-      const group: React.ReactNode[] = []
-      for (const c of cited) {
-        if (seen.has(c.source)) continue
+    // Dedupe matched markers by source; preserve unmatched markers as plain text
+    // so a mixed run like [1][9] where [9] has no citation still shows "[9]".
+    const seen = new Set<string>()
+    const group: React.ReactNode[] = []
+    for (const n of nums) {
+      const c = byNum.get(n)
+      if (!c) {
+        group.push(<Fragment key={key++}>{`[${n}]`}</Fragment>)
+      } else if (!seen.has(c.source)) {
         seen.add(c.source)
         group.push(<CitePill key={c.n} citation={c} onCite={onCite} />)
       }
-      parts.push(
-        <span key={key++} className="inline-flex flex-wrap items-center">
-          {group}
-        </span>,
-      )
-    } else {
-      parts.push(<Fragment key={key++}>{m[0]}</Fragment>)
     }
+    parts.push(
+      <span key={key++} className="inline-flex flex-wrap items-center">
+        {group}
+      </span>,
+    )
     last = re.lastIndex
   }
   if (last < text.length) parts.push(<Fragment key={key++}>{text.slice(last)}</Fragment>)
