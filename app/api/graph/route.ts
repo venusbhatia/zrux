@@ -54,6 +54,12 @@ export async function GET(req: NextRequest): Promise<Response> {
     // Keep the highest confidence + most recent occurrence, and count corroborating
     // sources so the UI can show "mentioned in N messages". Both endpoints must
     // resolve to a known entity, or the edge is dropped (no floating/unnamed nodes).
+    //
+    // `count` is over the rows actually returned, so it is a lower bound once a
+    // tenant exceeds MAX_EDGES confident edges (the whole edge set is capped there,
+    // by design, long before any single triple realistically does). The
+    // representative edge is still correct: confidence-desc ordering means the
+    // highest-confidence row for each key is always within the returned window.
     const nameById = new Map((entities ?? []).map((e) => [e.id, e.name]))
     const merged = new Map<
       string,

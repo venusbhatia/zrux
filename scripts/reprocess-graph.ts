@@ -18,8 +18,8 @@
 import ws from 'ws'
 ;(globalThis as { WebSocket?: unknown }).WebSocket ??= ws
 import { createServiceClient } from '../lib/db/supabase'
-import { extractAndResolve } from '../lib/graph/entity-resolution'
-import { isBulkPromotional } from '../lib/graph/triple-extraction'
+import { isGatedBroadcast, resolveAndUpsertTriples } from '../lib/graph/entity-resolution'
+import { extractTriples, shouldExtract, type Triple } from '../lib/graph/triple-extraction'
 import type { RawItem, SourceName } from '../lib/connectors/types'
 
 const APPLY = process.env.APPLY === '1'
@@ -51,29 +51,8 @@ async function main() {
     for (const it of data ?? []) items.set(it.id, it)
   }
 
-  const bulk = [...items.values()].filter((it) =>
-    isBulkPromotional(it.author ?? undefined, it.metadata),
-  ).length
-  console.log(`  of which bulk/promotional (gate -> 0 edges): ${bulk}`)
-
-  if (!APPLY) {
-    console.log('\nDRY RUN. Re-run with APPLY=1 to re-extract and rewrite edges.')
-    return
-  }
-
-  let processed = 0
-  let edgesAfter = 0
-  for (const it of items.values()) {
-    // Rebuild body from the item's chunks (the text we actually embedded).
-    const { data: chunks } = await db
-      .from('context_chunk')
-      .select('content')
-      .eq('user_id', it.user_id)
-      .eq('item_id', it.id)
-      .limit(50)
-    const body = (chunks ?? []).map((c) => c.content).join('\n\n') || (it.title ?? '')
-
-    const raw: RawItem = {
+  function toRaw(it: any, body: string): RawItem {
+    return {
       source: it.source as SourceName,
       type: it.type,
       externalId: it.external_id,
@@ -85,22 +64,59 @@ async function main() {
       body,
       raw: null,
     }
+  }
 
-    // Delete this item's existing edges, then re-extract under the new rules.
+  const bulk = [...items.values()].filter((it) => isGatedBroadcast(toRaw(it, ''))).length
+  console.log(`  of which bulk/promotional (gate -> 0 edges): ${bulk}`)
+
+  if (!APPLY) {
+    console.log('\nDRY RUN. Re-run with APPLY=1 to re-extract and rewrite edges.')
+    return
+  }
+
+  let processed = 0
+  let edgesAfter = 0
+  let failed = 0
+  for (const it of items.values()) {
+    // Rebuild body from the item's chunks (the text we actually embedded).
+    const { data: chunks } = await db
+      .from('context_chunk')
+      .select('content')
+      .eq('user_id', it.user_id)
+      .eq('item_id', it.id)
+      .limit(50)
+    const body = (chunks ?? []).map((c) => c.content).join('\n\n') || (it.title ?? '')
+    const raw = toRaw(it, body)
+
+    // Determine the NEW edges BEFORE deleting the old ones. The extraction step is
+    // the only fallible part (an LLM call); if it throws we leave the existing
+    // edges untouched so a transient error can never strip an item's relationships
+    // (and orphan it from future runs, which find items by their existing edges).
+    let triples: Triple[]
+    try {
+      if (!shouldExtract(raw.source, raw.type) || isGatedBroadcast(raw)) {
+        triples = [] // gated: deterministic, no LLM -> safe to clear this item's edges
+      } else {
+        triples = await extractTriples(raw)
+      }
+    } catch (err) {
+      console.error(`  extract failed for ${it.id}, keeping old edges: ${(err as Error).message}`)
+      failed++
+      processed++
+      continue
+    }
+
+    // Extraction succeeded: now it is safe to swap. Delete old edges, write new.
     const del = await db.from('edge').delete().eq('user_id', it.user_id).eq('source_item', it.id)
     if (del.error) throw new Error(`edge delete ${it.id}: ${del.error.message}`)
+    const { edges: n } = await resolveAndUpsertTriples(it.user_id, raw, triples, it.id)
+    edgesAfter += n
 
-    try {
-      const { edges: n } = await extractAndResolve(it.user_id, raw, it.id)
-      edgesAfter += n
-    } catch (err) {
-      console.error(`  reprocess failed for ${it.id}: ${(err as Error).message}`)
-    }
     processed++
     if (processed % 20 === 0) console.log(`  ...${processed}/${items.size} items`)
   }
 
-  console.log(`\nreprocessed items: ${processed}`)
+  console.log(`\nreprocessed items: ${processed} (extract failures kept old edges: ${failed})`)
   console.log(`edges after: ${edgesAfter}`)
 
   // Remove entities left with no edge.

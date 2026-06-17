@@ -125,7 +125,7 @@ describe('extractAndResolve (broadcast-mail gate)', () => {
     expect(genObject).not.toHaveBeenCalled()
   })
 
-  it('skips no-reply / automated senders before any LLM call', async () => {
+  it('skips no-reply / automated Gmail senders before any LLM call', async () => {
     const res = await extractAndResolve(
       'u1',
       rawItem({ author: 'Google <no-reply@accounts.google.com>' }),
@@ -133,6 +133,17 @@ describe('extractAndResolve (broadcast-mail gate)', () => {
     )
     expect(res).toEqual({ edges: 0 })
     expect(genObject).not.toHaveBeenCalled()
+  })
+
+  it('does NOT gate a calendar meeting organized by a no-reply/service address', async () => {
+    // The bulk gate is Gmail-scoped: a real meeting scheduled by a service alias
+    // still encodes founder relationships and must reach extraction.
+    await extractAndResolve(
+      'u1',
+      rawItem({ source: 'calendar', type: 'meeting', author: 'no-reply@calendar-svc.com' }),
+      'item-mtg',
+    )
+    expect(genObject).toHaveBeenCalledTimes(1)
   })
 
   it('skips low-signal sources (Slack/Sentry) before any LLM call', async () => {
