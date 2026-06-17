@@ -173,6 +173,22 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['source_connection']['Insert']>
         Relationships: []
       }
+      briefing: {
+        Row: {
+          user_id: string
+          payload: Json
+          item_count: number
+          generated_at: string
+        }
+        Insert: {
+          user_id: string
+          payload: Json
+          item_count?: number
+          generated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['briefing']['Insert']>
+        Relationships: []
+      }
     }
     Functions: {
       hybrid_search: {
