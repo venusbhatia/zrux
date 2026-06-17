@@ -54,10 +54,7 @@ export default function RelationshipsPage() {
     }
   }, [])
 
-  const layout = useMemo(
-    () => (data ? layoutGraph(data.entities, data.edges) : null),
-    [data],
-  )
+  const layout = useMemo(() => (data ? layoutGraph(data.entities, data.edges) : null), [data])
 
   // Auto-select the focal node once the layout lands.
   useEffect(() => {
@@ -71,9 +68,7 @@ export default function RelationshipsPage() {
     const entity = data.entities.find((e) => e.id === selectedId)
     if (!entity) return null
     const byId = new Map(data.entities.map((e) => [e.id, e]))
-    const incident = data.edges.filter(
-      (e) => e.from.id === selectedId || e.to.id === selectedId,
-    )
+    const incident = data.edges.filter((e) => e.from.id === selectedId || e.to.id === selectedId)
     const neighborIds = new Set<string>()
     for (const e of incident) {
       neighborIds.add(e.from.id === selectedId ? e.to.id : e.from.id)
@@ -93,9 +88,12 @@ export default function RelationshipsPage() {
       const otherId = e.from.id === selectedId ? e.to.id : e.from.id
       const otherName = byId.get(otherId)?.name ?? 'someone'
       const rel = e.relation.replace(/_/g, ' ')
+      const when = e.occurred_at ? `${relativeTime(e.occurred_at)} ago` : 'undated'
+      // Corroboration: how many source items support this relationship.
+      const corrob = e.count && e.count > 1 ? ` · ${e.count} mentions` : ''
       return {
         text: `${rel} ${otherName}`,
-        meta: e.occurred_at ? `${relativeTime(e.occurred_at)} ago` : 'undated',
+        meta: `${when}${corrob}`,
       }
     })
     const lastTouch = sorted[0]?.occurred_at ? relativeTime(sorted[0].occurred_at) : 'unknown'

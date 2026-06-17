@@ -4,7 +4,12 @@
 // to a refusal without spending an LLM call (see isThin / REFUSAL).
 
 import { streamText } from 'ai'
-import { chatModel, noteGatewayFailure, noteGatewaySuccess } from '../llm/gateway'
+import {
+  chatModel,
+  MAX_OUTPUT_TOKENS,
+  noteGatewayFailure,
+  noteGatewaySuccess,
+} from '../llm/gateway'
 import { aiTelemetry } from '../observability/langfuse'
 import type { AssembledContext } from './types'
 
@@ -39,6 +44,7 @@ export function synthesizeStream(
     system: SYNTH_SYSTEM,
     prompt,
     temperature: 0.2,
+    maxTokens: MAX_OUTPUT_TOKENS.synthesis,
     experimental_telemetry: aiTelemetry('synthesize-answer'),
     // streamText errors surface as the stream drains, so feed the outcome back to
     // the breaker here: a stream failure still counts toward tripping it, and a
@@ -46,8 +52,16 @@ export function synthesizeStream(
     onError: ({ error }) => {
       void noteGatewayFailure(error)
     },
-    onFinish: async ({ text }) => {
+    onFinish: async ({ text, finishReason }) => {
       void noteGatewaySuccess()
+      // A 'length' finish means the model hit the maxTokens cap and the answer
+      // was cropped mid-sentence. The text still streams to the client, so warn
+      // here rather than silently forwarding a coherent-looking but partial answer.
+      if (finishReason === 'length') {
+        console.warn('[synthesize] response hit maxTokens cap; answer may be truncated', {
+          questionPreview: question.slice(0, 120),
+        })
+      }
       await opts.onFinish?.(text)
     },
   })

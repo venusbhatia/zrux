@@ -6,7 +6,7 @@
 
 import { createServiceClient } from '../db/supabase'
 import type { RawItem } from '../connectors/types'
-import { extractTriples, shouldExtract } from './triple-extraction'
+import { extractTriples, isBulkPromotional, shouldExtract, type Triple } from './triple-extraction'
 
 // Conservative: 0.45 trigram similarity merges "Sarah" / "Sarah Chen" but keeps
 // "Sarah Chen" and "Sarah Connor" apart.
@@ -172,18 +172,24 @@ function emailHints(raw: RawItem): Map<string, string> {
   return hints
 }
 
-// Orchestrates step 9-10 of the pipeline for one item: extract triples (gated),
-// resolve both endpoints to entities, upsert the edge. Returns edge count.
-// Best-effort; the ingest core wraps this so a failure never blocks the item.
-export async function extractAndResolve(
+// True when an item is broadcast/promotional mail that must not feed the graph.
+// Scoped to Gmail: the promotional categories and automated-sender heuristic only
+// make sense for email. A calendar 'meeting' can legitimately be organized by a
+// no-reply/service address yet still encode real founder relationships, so it
+// must NOT be gated here (it would silently drop those relationships).
+export function isGatedBroadcast(raw: RawItem): boolean {
+  return raw.source === 'gmail' && isBulkPromotional(raw.author, raw.metadata)
+}
+
+// Resolve both endpoints of each triple and upsert the edges. Split out from
+// extractAndResolve so a migration can run the fallible extraction step first and
+// only delete/rewrite edges once it has succeeded (scripts/reprocess-graph.ts).
+export async function resolveAndUpsertTriples(
   userId: string,
   raw: RawItem,
+  triples: Triple[],
   itemId: string,
 ): Promise<{ edges: number }> {
-  if (!shouldExtract(raw.source, raw.type)) return { edges: 0 }
-  const triples = await extractTriples(raw)
-  if (triples.length === 0) return { edges: 0 }
-
   const hints = emailHints(raw)
   const occurredAt = raw.sourceCreatedAt.toISOString()
   let edges = 0
@@ -203,4 +209,21 @@ export async function extractAndResolve(
     edges++
   }
   return { edges }
+}
+
+// Orchestrates step 9-10 of the pipeline for one item: extract triples (gated),
+// resolve both endpoints to entities, upsert the edge. Returns edge count.
+// Best-effort; the ingest core wraps this so a failure never blocks the item.
+export async function extractAndResolve(
+  userId: string,
+  raw: RawItem,
+  itemId: string,
+): Promise<{ edges: number }> {
+  if (!shouldExtract(raw.source, raw.type)) return { edges: 0 }
+  // Skip broadcast/promotional mail: it describes third-party facts, not the
+  // founder's own relationships, and is the dominant source of graph noise.
+  if (isGatedBroadcast(raw)) return { edges: 0 }
+  const triples = await extractTriples(raw)
+  if (triples.length === 0) return { edges: 0 }
+  return resolveAndUpsertTriples(userId, raw, triples, itemId)
 }

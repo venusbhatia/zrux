@@ -3,7 +3,7 @@
 
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import { callWithFallback } from '../llm/gateway'
+import { callWithFallback, MAX_OUTPUT_TOKENS } from '../llm/gateway'
 import { aiTelemetry } from '../observability/langfuse'
 import type { RetrievalPlan } from './types'
 
@@ -54,6 +54,7 @@ export async function planQuery(question: string, now: Date = new Date()): Promi
       schema: planSchema,
       system: PLAN_SYSTEM,
       prompt: `Current time: ${now.toISOString()}\n\nFounder question: ${question}`,
+      maxTokens: MAX_OUTPUT_TOKENS.plan,
       experimental_telemetry: aiTelemetry('plan-query'),
     }),
   )

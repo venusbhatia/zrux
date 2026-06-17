@@ -26,6 +26,7 @@ vi.mock('@/lib/retrieval/synthesize', () => ({
 vi.mock('@/lib/llm/gateway', () => ({
   chatModel: () => ({}),
   withRetry: (fn: () => unknown) => fn(),
+  MAX_OUTPUT_TOKENS: { brief: 2000 },
 }))
 vi.mock('@/lib/observability/langfuse', () => ({ aiTelemetry: () => ({ isEnabled: false }) }))
 vi.mock('ai', () => ({ generateObject: m.generateObject }))

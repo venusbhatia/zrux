@@ -17,7 +17,7 @@ import { z } from 'zod'
 import { createServiceClient } from '../lib/db/supabase'
 import { retrieve } from '../lib/retrieval/pipeline'
 import { synthesizeStream, isThin } from '../lib/retrieval/synthesize'
-import { chatModel } from '../lib/llm/gateway'
+import { chatModel, MAX_OUTPUT_TOKENS } from '../lib/llm/gateway'
 import { FIXTURE_USER_ID } from './fixture'
 import { seedFixture } from './seed'
 
@@ -83,6 +83,7 @@ async function judgeGroundedness(answer: string, contextBlock: string): Promise<
     const { object } = await generateObject({
       model: chatModel(JUDGE_MODEL),
       schema: judgeSchema,
+      maxTokens: MAX_OUTPUT_TOKENS.judge,
       system:
         'You grade whether an ANSWER is grounded in the provided CONTEXT. The answer is grounded ' +
         'only if every factual claim is supported by CONTEXT and carries a bracketed [n] citation ' +

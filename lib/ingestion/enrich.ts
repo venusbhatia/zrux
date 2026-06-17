@@ -5,7 +5,7 @@
 // never get a gloss - their provenance + body is already self-describing.
 
 import { generateText } from 'ai'
-import { chatModel, FALLBACK_MODEL, withRetry } from '../llm/gateway'
+import { chatModel, FALLBACK_MODEL, MAX_OUTPUT_TOKENS, withRetry } from '../llm/gateway'
 import { aiTelemetry } from '../observability/langfuse'
 import type { RawItem } from '../connectors/types'
 
@@ -34,6 +34,7 @@ async function gloss(provenance: string, chunk: string): Promise<string | null> 
         system: GLOSS_SYSTEM,
         prompt: `${provenance}\n\n${chunk.slice(0, 2000)}`,
         temperature: 0.2,
+        maxTokens: MAX_OUTPUT_TOKENS.gloss,
         experimental_telemetry: aiTelemetry('enrich-gloss'),
       }),
     )
