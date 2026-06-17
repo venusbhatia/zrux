@@ -1,7 +1,9 @@
 'use client'
 
 // The sidebar CONNECTED section. Polls /api/connections so the live dots reflect
-// real connection status: green = active, amber = connecting, grey = error/idle.
+// real connection status: green = active, amber = connecting, red = error, grey =
+// idle. Every row links into /connections, where the account can be reconnected,
+// switched, or disconnected.
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -19,6 +21,13 @@ function dotColor(status: string): string {
   if (status === 'initiated') return '#f5a623'
   if (status === 'error') return '#ff3b30'
   return '#d2d2d7'
+}
+
+function statusTitle(c: ConnectionStatus): string {
+  if (c.status === 'error') return 'Needs attention'
+  if (c.status === 'initiated') return 'Connecting'
+  if (c.itemCount > 0) return `Connected · ${c.itemCount} items`
+  return 'Indexing'
 }
 
 export function SourceDots() {
@@ -51,9 +60,10 @@ export function SourceDots() {
   if (connections.length === 0) {
     return (
       <Link
-        href="/onboarding"
-        className="block px-[10px] py-1.5 text-[13px] text-accent hover:underline"
+        href="/connections"
+        className="flex items-center gap-2 px-[10px] py-1.5 text-[13px] text-accent hover:underline"
       >
+        <Icon name="plus" size={14} />
         Connect a source
       </Link>
     )
@@ -64,22 +74,37 @@ export function SourceDots() {
       {connections.map((c) => {
         const meta = sourceMeta(c.source)
         return (
-          <div
+          <Link
             key={c.source}
-            className="flex items-center gap-2.5 px-[10px] py-1.5 text-[13px] text-[#3a3a3e]"
+            href="/connections"
+            title={`${meta.label} · ${statusTitle(c)} · manage`}
+            className="group flex items-center gap-2.5 rounded-[8px] px-[10px] py-1.5 text-[13px] text-[#3a3a3e] transition-colors hover:bg-black/[.045]"
           >
             <span className="inline-flex text-muted">
               <Icon name={meta.icon} size={15} />
             </span>
             <span>{meta.label}</span>
-            <span
-              className="ml-auto h-[7px] w-[7px] rounded-full"
-              style={{ background: dotColor(c.status) }}
-              title={c.status}
-            />
-          </div>
+            <span className="ml-auto inline-flex items-center gap-1.5">
+              <Icon
+                name="settings"
+                size={13}
+                className="text-hint opacity-0 transition-opacity group-hover:opacity-100"
+              />
+              <span
+                className="h-[7px] w-[7px] rounded-full"
+                style={{ background: dotColor(c.status) }}
+              />
+            </span>
+          </Link>
         )
       })}
+      <Link
+        href="/connections"
+        className="mt-0.5 flex items-center gap-2 px-[10px] py-1.5 text-[12px] text-hint hover:text-ink"
+      >
+        <Icon name="plus" size={13} />
+        Add or manage sources
+      </Link>
     </div>
   )
 }

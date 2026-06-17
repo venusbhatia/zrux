@@ -108,3 +108,61 @@ export async function POST(
     return new Response('Failed to start connection', { status: 502 })
   }
 }
+
+// DELETE /api/connect/[source] - disconnect a source. Revokes the Composio
+// connected account (so a later reconnect can bind a different account, since
+// link() refuses a second ACTIVE account on the same auth config) and removes the
+// source_connection row, which takes the source out of the scheduled poll. Already
+// ingested context_item rows are intentionally left in place; disconnecting stops
+// future syncs, it does not erase history. Best-effort on the Composio side: a
+// failure there (account already gone) must not block clearing our row.
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { source: string } },
+): Promise<Response> {
+  const source = params.source
+  if (!isConnectable(source)) {
+    return new Response(`Source not connectable: ${source}`, { status: 400 })
+  }
+
+  let userId: string
+  try {
+    userId = await getUserId(req)
+  } catch (err) {
+    if (err instanceof UnauthorizedError) return new Response('Unauthorized', { status: 401 })
+    throw err
+  }
+
+  try {
+    const db = createServiceClient()
+    const { data: row, error: readErr } = await db
+      .from('source_connection')
+      .select('connected_account_id')
+      .eq('user_id', userId)
+      .eq('source', source)
+      .maybeSingle()
+    if (readErr) throw new Error(readErr.message)
+
+    if (row?.connected_account_id) {
+      try {
+        await composio().connectedAccounts.delete(row.connected_account_id)
+      } catch (revokeErr) {
+        // Account may already be revoked on Composio's side. Log and proceed to
+        // clear our row so the UI reflects the disconnect either way.
+        captureError('connect', revokeErr, { userId, source, stage: 'revoke' })
+      }
+    }
+
+    const { error: delErr } = await db
+      .from('source_connection')
+      .delete()
+      .eq('user_id', userId)
+      .eq('source', source)
+    if (delErr) throw new Error(delErr.message)
+
+    return Response.json({ disconnected: true })
+  } catch (err) {
+    captureError('connect', err, { userId, source })
+    return new Response('Failed to disconnect', { status: 502 })
+  }
+}

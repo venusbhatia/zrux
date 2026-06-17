@@ -49,5 +49,6 @@ export const config = {
     '/relationships/:path*',
     '/search/:path*',
     '/onboarding/:path*',
+    '/connections/:path*',
   ],
 }
