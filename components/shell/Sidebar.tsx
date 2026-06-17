@@ -95,9 +95,14 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="mt-6 px-[10px] pb-2 text-[11px] font-semibold tracking-[.05em] text-hint">
-        CONNECTED
-      </div>
+      <Link
+        href="/connections"
+        title="Manage connections"
+        className="mt-6 flex items-center justify-between px-[10px] pb-2 text-[11px] font-semibold tracking-[.05em] text-hint transition-colors hover:text-ink"
+      >
+        <span>CONNECTED</span>
+        <Icon name="settings" size={13} />
+      </Link>
       <SourceDots />
 
       <div className="mt-auto flex items-center gap-2.5 border-t border-hairline-faint px-2 pb-1 pt-3">
