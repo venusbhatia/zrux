@@ -52,7 +52,9 @@ export function synthesizeStream(
       // was cropped mid-sentence. The text still streams to the client, so warn
       // here rather than silently forwarding a coherent-looking but partial answer.
       if (finishReason === 'length') {
-        console.warn('[synthesize] response hit maxTokens cap; answer may be truncated')
+        console.warn('[synthesize] response hit maxTokens cap; answer may be truncated', {
+          questionPreview: question.slice(0, 120),
+        })
       }
       await opts.onFinish?.(text)
     },
