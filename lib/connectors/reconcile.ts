@@ -45,49 +45,67 @@ export async function reconcileInitiated(userId: string): Promise<ReconcileResul
 
   for (const conn of pending ?? []) {
     const ageMs = Date.now() - new Date(conn.updated_at).getTime()
+
+    // 1. Fetch live Composio status. get() throws when the account was never
+    //    created or has been deleted; only this lookup is the 'get-account' stage.
+    //    A transient blip mid-OAuth must not nuke a live attempt, so we only give
+    //    up on a fetch failure once the row is past its TTL.
+    let status: string
     try {
       const account = (await composio().connectedAccounts.get(conn.connected_account_id)) as {
         status?: string
       }
-      const status = (account.status ?? '').toUpperCase()
-
-      if (status === 'ACTIVE') {
-        await markStatus(db, userId, conn.source, 'active')
-        await enqueueLoad(userId, conn.source as SourceName)
-        activated++
-        continue
-      }
-
-      if (TERMINAL_STATUSES.has(status) || ageMs > INITIATED_TTL_MS) {
-        await markStatus(db, userId, conn.source, 'error')
-        errored++
-      }
-      // else: still pending and recent — leave as 'initiated'.
+      status = (account.status ?? '').toUpperCase()
     } catch (err) {
-      // get() throws when the account was never created or has been deleted in
-      // Composio. Only treat it as terminal once the row is past its TTL, so a
-      // transient Composio blip mid-OAuth does not nuke a live attempt.
       captureError('reconcile', err, { userId, source: conn.source, stage: 'get-account' })
-      if (ageMs > INITIATED_TTL_MS) {
-        await markStatus(db, userId, conn.source, 'error')
-        errored++
-      }
+      if (ageMs > INITIATED_TTL_MS && (await markInitiated(db, userId, conn, 'error'))) errored++
+      continue
     }
+
+    // 2. Resolve. The DB write and the enqueue are guarded separately so that a
+    //    failed enqueue can never revert a row we just marked active.
+    if (status === 'ACTIVE') {
+      if (await markInitiated(db, userId, conn, 'active')) {
+        activated++
+        try {
+          await enqueueLoad(userId, conn.source as SourceName)
+        } catch (err) {
+          // The connection is genuinely active; a failed enqueue is logged and
+          // the scheduled poll re-picks the source. Never flip it back to error.
+          captureError('reconcile', err, { userId, source: conn.source, stage: 'enqueue-load' })
+        }
+      }
+      continue
+    }
+
+    if (TERMINAL_STATUSES.has(status) || ageMs > INITIATED_TTL_MS) {
+      if (await markInitiated(db, userId, conn, 'error')) errored++
+    }
+    // else: still pending and recent — leave as 'initiated'.
   }
 
   return { activated, errored }
 }
 
-async function markStatus(
+// Update only the row we actually checked: still 'initiated' AND still the same
+// connected_account_id. If the user clicked Retry mid-sweep, the connect route
+// upserted a fresh attempt (new account id, status reset to 'initiated'), so this
+// stale result matches zero rows instead of clobbering the new one. Returns true
+// when a row was actually updated.
+async function markInitiated(
   db: ReturnType<typeof createServiceClient>,
   userId: string,
-  source: string,
+  conn: { source: string; connected_account_id: string },
   status: 'active' | 'error',
-): Promise<void> {
-  const { error } = await db
+): Promise<boolean> {
+  const { data, error } = await db
     .from('source_connection')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('user_id', userId)
-    .eq('source', source)
+    .eq('source', conn.source)
+    .eq('connected_account_id', conn.connected_account_id)
+    .eq('status', 'initiated')
+    .select('source')
   if (error) throw new Error(error.message)
+  return (data?.length ?? 0) > 0
 }

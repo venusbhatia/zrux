@@ -18,10 +18,9 @@ vi.mock('@/lib/db/supabase', () => {
     let pendingUpdate: { status?: string } | null = null
     let source: string | undefined
     b.from = () => b
-    b.select = () => {
-      op = 'select'
-      return b
-    }
+    // select() is the read terminal AND the .select() chained after update() to
+    // return affected rows; it must not reset an in-progress update back to a read.
+    b.select = () => b
     b.update = (vals: { status?: string }) => {
       op = 'update'
       pendingUpdate = vals
@@ -34,7 +33,9 @@ vi.mock('@/lib/db/supabase', () => {
     b.then = (resolve: (v: unknown) => unknown) => {
       if (op === 'update') {
         m.updates.push({ source: source as string, status: pendingUpdate?.status as string })
-        return resolve({ error: null })
+        // One affected row (the 'initiated' row still matched the predicate), so
+        // markInitiated() sees the write took effect.
+        return resolve({ data: [{ source }], error: null })
       }
       return resolve(m.pending)
     }
@@ -140,5 +141,21 @@ describe('reconcileInitiated', () => {
 
     expect(res).toEqual({ activated: 0, errored: 0 })
     expect(m.updates).toEqual([])
+  })
+
+  it('keeps an ACTIVE row active even if enqueueLoad throws (no revert to error)', async () => {
+    // Past-TTL row that finally went ACTIVE in Composio. enqueueLoad failing must
+    // not drop it into the catch and flip the just-activated row to 'error'.
+    m.pending = {
+      data: [{ source: 'gmail', connected_account_id: 'ca_7', updated_at: old() }],
+      error: null,
+    }
+    m.getStatus.mockResolvedValue({ status: 'ACTIVE' })
+    m.enqueueLoad.mockRejectedValue(new Error('trigger down'))
+
+    const res = await reconcileInitiated('u1')
+
+    expect(res).toEqual({ activated: 1, errored: 0 })
+    expect(m.updates).toEqual([{ source: 'gmail', status: 'active' }])
   })
 })
