@@ -14,6 +14,7 @@
 // brief paint for the next. Per-user keys make a cross-tenant read a clean miss.
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { BriefCard } from '@/components/today/BriefCard'
 import { CardSkeletonList } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -46,6 +47,14 @@ function writeCachedToday(userId: string, value: TodayResponse): void {
   }
 }
 
+function clearCachedToday(userId: string): void {
+  try {
+    sessionStorage.removeItem(cacheKey(userId))
+  } catch {
+    // Non-fatal: removal best-effort.
+  }
+}
+
 function timeGreeting(now: Date): string {
   const h = now.getHours()
   if (h < 12) return 'Good morning'
@@ -54,6 +63,7 @@ function timeGreeting(now: Date): string {
 }
 
 export default function TodayPage() {
+  const router = useRouter()
   const [data, setData] = useState<TodayResponse | null>(null)
   const [error, setError] = useState(false)
   // Default matches SSR; corrected to the visitor's local time on mount so server
@@ -92,8 +102,19 @@ export default function TodayPage() {
       try {
         const res = await fetch('/api/today')
         if (!res.ok) {
-          // Keep a good cached brief on screen rather than flipping to the error
-          // state over a transient revalidation failure.
+          if (res.status === 401) {
+            // Session is stale or revoked server-side. Never leave protected brief
+            // content on screen for an unauthenticated session: drop the cached
+            // brief, clear the view, and hand off to sign-in (middleware target).
+            if (uid) clearCachedToday(uid)
+            if (alive) {
+              setData(null)
+              router.replace('/login')
+            }
+            return
+          }
+          // Transient failure (e.g. 5xx). Keep a good cached brief on screen
+          // rather than flipping to the error state over a flaky revalidation.
           if (alive && !cached) setError(true)
           return
         }
