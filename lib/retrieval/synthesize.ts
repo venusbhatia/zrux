@@ -46,8 +46,14 @@ export function synthesizeStream(
     onError: ({ error }) => {
       void noteGatewayFailure(error)
     },
-    onFinish: async ({ text }) => {
+    onFinish: async ({ text, finishReason }) => {
       void noteGatewaySuccess()
+      // A 'length' finish means the model hit the maxTokens cap and the answer
+      // was cropped mid-sentence. The text still streams to the client, so warn
+      // here rather than silently forwarding a coherent-looking but partial answer.
+      if (finishReason === 'length') {
+        console.warn('[synthesize] response hit maxTokens cap; answer may be truncated')
+      }
       await opts.onFinish?.(text)
     },
   })
