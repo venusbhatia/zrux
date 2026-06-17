@@ -11,7 +11,7 @@ import { captureError } from '@/lib/observability/report'
 import { generateObject } from 'ai'
 import { retrieve } from '@/lib/retrieval/pipeline'
 import { isThin } from '@/lib/retrieval/synthesize'
-import { chatModel, withRetry } from '@/lib/llm/gateway'
+import { chatModel, MAX_OUTPUT_TOKENS, withRetry } from '@/lib/llm/gateway'
 import { aiTelemetry } from '@/lib/observability/langfuse'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { todayResponseSchema, type TodayCard, type TodayResponse } from '@/lib/api/today-schema'
@@ -93,6 +93,7 @@ export async function GET(req: NextRequest): Promise<Response> {
         system: TODAY_SYSTEM,
         prompt: `Today is ${generatedAt}.\n\nCONTEXT:\n${context.block}`,
         temperature: 0.2,
+        maxTokens: MAX_OUTPUT_TOKENS.brief,
         experimental_telemetry: aiTelemetry('today-brief'),
       }),
     )

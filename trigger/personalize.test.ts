@@ -13,6 +13,7 @@ vi.mock('../lib/llm/gateway', () => ({
   chatModel: () => ({}),
   FALLBACK_MODEL: 'anthropic/claude-haiku-4-5',
   withRetry: (fn: () => unknown) => fn(),
+  MAX_OUTPUT_TOKENS: { learn: 1000 },
 }))
 vi.mock('../lib/observability/langfuse', () => ({
   aiTelemetry: () => ({ isEnabled: false }),

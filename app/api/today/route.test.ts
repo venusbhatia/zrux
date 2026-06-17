@@ -26,6 +26,7 @@ vi.mock('@/lib/retrieval/synthesize', () => ({
 vi.mock('@/lib/llm/gateway', () => ({
   chatModel: () => ({}),
   withRetry: (fn: () => unknown) => fn(),
+  MAX_OUTPUT_TOKENS: { brief: 2000 },
 }))
 vi.mock('@/lib/observability/langfuse', () => ({ aiTelemetry: () => ({ isEnabled: false }) }))
 vi.mock('ai', () => ({ generateObject: m.generateObject }))
@@ -116,7 +117,11 @@ describe('GET /api/today', () => {
     expect(body.empty).toBe(false)
     expect(body.cards).toHaveLength(1)
     // Ref is backfilled from the citation, not from anything the model supplied.
-    expect(body.cards[0]!.refs[0]).toMatchObject({ item_id: 'i1', source: 'gmail', url: 'https://mail/i1' })
+    expect(body.cards[0]!.refs[0]).toMatchObject({
+      item_id: 'i1',
+      source: 'gmail',
+      url: 'https://mail/i1',
+    })
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -141,7 +146,12 @@ describe('GET /api/today personalization', () => {
     m.retrieve.mockResolvedValue(
       retrieveResult({
         itemCount: 1,
-        profile: { block: 'FOUNDER PROFILE...', memoryIds: ['m1'], standingCount: 1, scopedCount: 0 },
+        profile: {
+          block: 'FOUNDER PROFILE...',
+          memoryIds: ['m1'],
+          standingCount: 1,
+          scopedCount: 0,
+        },
       }),
     )
     m.generateObject.mockResolvedValue({
