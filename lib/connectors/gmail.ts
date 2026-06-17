@@ -7,6 +7,10 @@ import { executeTool } from './composio'
 
 const SLUG = 'GMAIL_FETCH_EMAILS'
 const PAGE = 50
+// The founder's sent history is the signal that makes relationship strength
+// two-way (reciprocity, responsiveness). It is often older than the inbox
+// lookback, so we fetch it over a wider window in a dedicated pass.
+const SENT_WINDOW_DAYS = 730
 
 interface GmailMessage {
   messageId?: string
@@ -16,6 +20,7 @@ interface GmailMessage {
   sender?: string
   from?: string
   to?: string
+  cc?: string
   messageText?: string
   preview?: string
   snippet?: string
@@ -44,7 +49,9 @@ function toRawItem(m: GmailMessage): RawItem | null {
     url: m.threadId ? `https://mail.google.com/mail/u/0/#inbox/${m.threadId}` : undefined,
     sourceCreatedAt: when,
     sourceUpdatedAt: when,
-    metadata: { threadId: m.threadId, labelIds: m.labelIds, to: m.to },
+    // to + cc + labelIds drive relationship-strength (direction, reciprocity,
+    // CC-privacy); the SENT label marks the founder's outbound mail.
+    metadata: { threadId: m.threadId, labelIds: m.labelIds, to: m.to, cc: m.cc },
     body: body || (m.subject ?? ''),
     raw: m,
   }
@@ -71,7 +78,12 @@ export const gmailConnector: Connector = {
   source: 'gmail',
 
   async *load(ctx: SyncContext): AsyncIterable<RawItem> {
+    // Recent mail (inbox + sent within the window) ...
     yield* fetchByQuery(ctx.userId, `newer_than:${ctx.lookbackDays}d`)
+    // ... plus the founder's older sent history, for two-way strength signal.
+    if (ctx.lookbackDays < SENT_WINDOW_DAYS) {
+      yield* fetchByQuery(ctx.userId, `in:sent newer_than:${SENT_WINDOW_DAYS}d`)
+    }
   },
 
   async *poll(ctx: SyncContext, since: Date): AsyncIterable<RawItem> {
@@ -85,6 +97,14 @@ export const gmailConnector: Connector = {
   async *slim(ctx: SyncContext): AsyncIterable<ExternalId> {
     for await (const item of fetchByQuery(ctx.userId, `newer_than:${ctx.lookbackDays}d`)) {
       yield item.externalId
+    }
+    if (ctx.lookbackDays < SENT_WINDOW_DAYS) {
+      for await (const item of fetchByQuery(
+        ctx.userId,
+        `in:sent newer_than:${SENT_WINDOW_DAYS}d`,
+      )) {
+        yield item.externalId
+      }
     }
   },
 }
