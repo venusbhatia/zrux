@@ -82,6 +82,9 @@ export async function rollupToItems(
       status: item.status,
       best_content: hit.content,
       score: hit.score,
+      // Carry Cohere's relevance when present (hits are RankedHit after rerank);
+      // 0 for the un-reranked search path. Confidence prefers this over the RRF score.
+      rerank_score: (hit as { rerank_score?: number }).rerank_score ?? 0,
     })
   }
 

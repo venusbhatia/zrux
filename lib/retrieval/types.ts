@@ -46,7 +46,8 @@ export interface RolledItem {
   source_updated_at: string
   status: string | null
   best_content: string
-  score: number
+  score: number // hybrid (RRF) score; drives rollup ordering
+  rerank_score: number // Cohere relevance 0..1; 0 when rerank is off. Used for confidence.
 }
 
 // Assembled, numbered context ready for synthesis.
@@ -63,4 +64,5 @@ export interface Citation {
   title: string | null
   url: string | null
   date: string // human-facing date used in [Source, date]
+  score: number // retrieval score (rerank_score, or hybrid score) for confidence display
 }

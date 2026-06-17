@@ -42,6 +42,7 @@ const citation = {
   title: 'Acme',
   url: 'https://mail/i1',
   date: '2026-06-14',
+  score: 0.8,
 }
 
 // retrieve() returns the profile counts alongside the context; the route reads
@@ -108,7 +109,11 @@ describe('GET /api/today', () => {
     expect(res.status).toBe(200)
     expect(m.generateObject).toHaveBeenCalledTimes(1)
     const body = (await res.json()) as {
-      cards: { title: string; refs: { item_id: string; source: string; url: string | null }[] }[]
+      cards: {
+        title: string
+        confidence: number
+        refs: { item_id: string; source: string; url: string | null }[]
+      }[]
       itemCount: number
       empty: boolean
     }
@@ -116,7 +121,14 @@ describe('GET /api/today', () => {
     expect(body.empty).toBe(false)
     expect(body.cards).toHaveLength(1)
     // Ref is backfilled from the citation, not from anything the model supplied.
-    expect(body.cards[0]!.refs[0]).toMatchObject({ item_id: 'i1', source: 'gmail', url: 'https://mail/i1' })
+    expect(body.cards[0]!.refs[0]).toMatchObject({
+      item_id: 'i1',
+      source: 'gmail',
+      url: 'https://mail/i1',
+    })
+    // Confidence is server-derived from the citation scores (match %, clamped 40-99).
+    expect(body.cards[0]!.confidence).toBeGreaterThanOrEqual(40)
+    expect(body.cards[0]!.confidence).toBeLessThanOrEqual(99)
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -141,7 +153,12 @@ describe('GET /api/today personalization', () => {
     m.retrieve.mockResolvedValue(
       retrieveResult({
         itemCount: 1,
-        profile: { block: 'FOUNDER PROFILE...', memoryIds: ['m1'], standingCount: 1, scopedCount: 0 },
+        profile: {
+          block: 'FOUNDER PROFILE...',
+          memoryIds: ['m1'],
+          standingCount: 1,
+          scopedCount: 0,
+        },
       }),
     )
     m.generateObject.mockResolvedValue({

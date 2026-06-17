@@ -15,6 +15,7 @@ function item(source: string, score: number, id: string): RolledItem {
     status: null,
     best_content: id,
     score,
+    rerank_score: 0,
   }
 }
 

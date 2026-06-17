@@ -51,6 +51,10 @@ export function assembleContext(
       title: item.title,
       url: item.url,
       date,
+      // Prefer Cohere's cross-encoder relevance for confidence; fall back to the
+      // hybrid score when rerank is off (all rerank_score 0). Same scale within a
+      // result set, so the route's relative match % is meaningful either way.
+      score: item.rerank_score > 0 ? item.rerank_score : item.score,
     })
     const header =
       `[${n}] source=${item.source} type=${item.type}` +

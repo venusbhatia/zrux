@@ -12,6 +12,7 @@ import { hybridSearch } from '@/lib/retrieval/search'
 import { rollupToItems } from '@/lib/retrieval/rollup'
 import { isConnectable } from '@/lib/connectors/registry'
 import { searchResponseSchema, type SearchResult } from '@/lib/api/search-schema'
+import { matchPercent } from '@/lib/retrieval/relevance'
 import type { RolledItem } from '@/lib/retrieval/types'
 
 export const runtime = 'nodejs'
@@ -48,23 +49,19 @@ function tokenize(q: string): string[] {
 
 function toResults(items: RolledItem[], highlight: string[]): SearchResult[] {
   const topScore = items.length > 0 ? Math.max(...items.map((i) => i.score)) : 1
-  return items.map((item) => {
-    const raw = topScore > 0 ? Math.round((item.score / topScore) * 100) : 0
-    return {
-      item_id: item.item_id,
-      source: item.source,
-      type: item.type,
-      title: item.title,
-      author: item.author,
-      snippet: buildSnippet(item.best_content, highlight),
-      highlight,
-      url: item.url,
-      date: item.source_updated_at,
-      score: item.score,
-      // Clamp so the leader reads high and the tail stays readable, like the mock.
-      matchPercent: Math.min(99, Math.max(40, raw)),
-    }
-  })
+  return items.map((item) => ({
+    item_id: item.item_id,
+    source: item.source,
+    type: item.type,
+    title: item.title,
+    author: item.author,
+    snippet: buildSnippet(item.best_content, highlight),
+    highlight,
+    url: item.url,
+    date: item.source_updated_at,
+    score: item.score,
+    matchPercent: matchPercent(item.score, topScore),
+  }))
 }
 
 export async function GET(req: NextRequest): Promise<Response> {
