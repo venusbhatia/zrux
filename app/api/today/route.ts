@@ -2,15 +2,17 @@
 // should I focus on today?", then one generateObject call turns the retrieved,
 // cited context into briefing cards. Grounding is enforced server-side: every
 // card ref must point at a real retrieval citation, and url/source are backfilled
-// from those citations (the model never supplies them). On-demand for now;
-// precompute + cache is Phase 7. If context is thin we return empty and spend no
-// LLM call.
+// from those citations (the model never supplies them). The computed brief is
+// cached per tenant in Redis (todayCache) so revisiting /today doesn't re-run the
+// pipeline + LLM every time; `?refresh=1` forces a fresh recompute. If context is
+// thin we return empty and spend no LLM call.
 
 import type { NextRequest } from 'next/server'
 import { captureError } from '@/lib/observability/report'
 import { generateObject } from 'ai'
 import { retrieve } from '@/lib/retrieval/pipeline'
 import { isThin } from '@/lib/retrieval/synthesize'
+import { todayCache } from '@/lib/cache/today-cache'
 import { chatModel, MAX_OUTPUT_TOKENS, withRetry } from '@/lib/llm/gateway'
 import { aiTelemetry } from '@/lib/observability/langfuse'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
@@ -73,6 +75,14 @@ export async function GET(req: NextRequest): Promise<Response> {
     throw err
   }
 
+  // Serve a cached brief unless the caller explicitly asks for a fresh one. The
+  // cache is fail-open (a miss/error just runs the full pipeline below).
+  const refresh = req.nextUrl.searchParams.get('refresh') === '1'
+  if (!refresh) {
+    const cached = await todayCache.get(userId)
+    if (cached) return Response.json(cached)
+  }
+
   try {
     const { context, itemCount, relaxed, profile } = await retrieve(userId, TODAY_QUESTION)
     // Provenance only: how many durable preferences shaped this briefing's ordering.
@@ -112,6 +122,9 @@ export async function GET(req: NextRequest): Promise<Response> {
       generatedAt,
       personalization,
     }
+    // Cache only real briefs. An empty result usually means indexing is still in
+    // flight, so we don't want to pin "nothing needs you" for the whole TTL.
+    if (!payload.empty) await todayCache.set(userId, payload)
     return Response.json(payload)
   } catch (err) {
     captureError('today', err, { userId })

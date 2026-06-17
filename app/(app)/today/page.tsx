@@ -3,12 +3,57 @@
 // Today: the structured morning briefing. Fetches /api/today (grounded cards
 // from the real retrieval pipeline) and renders them. Publishes the card count
 // so the sidebar Today badge stays in sync without its own retrieval call.
+//
+// Navigating back to Today should feel instant, not reload from scratch: we cache
+// the last brief in sessionStorage, paint it immediately on mount, then revalidate
+// in the background (stale-while-revalidate). The server caches the brief too, so
+// that revalidation is a cheap cache hit rather than a full pipeline + LLM run.
+//
+// The cache key is scoped to the signed-in user id. sessionStorage survives a
+// sign-out + sign-in within the same tab, so a global key would let one tenant's
+// brief paint for the next. Per-user keys make a cross-tenant read a clean miss.
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { BriefCard } from '@/components/today/BriefCard'
 import { CardSkeletonList } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { createBrowserSupabase } from '@/lib/auth/supabase-browser'
 import type { TodayResponse } from '@/lib/api/today-schema'
+
+const TODAY_CACHE_PREFIX = 'zrux:today-data'
+
+function cacheKey(userId: string): string {
+  return `${TODAY_CACHE_PREFIX}:${userId}`
+}
+
+// Last rendered brief for this user, persisted across client navigations within
+// the session. Returns null on miss or any parse/storage error (cold load).
+function readCachedToday(userId: string): TodayResponse | null {
+  try {
+    const raw = sessionStorage.getItem(cacheKey(userId))
+    return raw ? (JSON.parse(raw) as TodayResponse) : null
+  } catch {
+    return null
+  }
+}
+
+function writeCachedToday(userId: string, value: TodayResponse): void {
+  try {
+    sessionStorage.setItem(cacheKey(userId), JSON.stringify(value))
+  } catch {
+    // sessionStorage can throw (quota, private mode). The brief is already on
+    // screen, so a failed cache write is non-fatal.
+  }
+}
+
+function clearCachedToday(userId: string): void {
+  try {
+    sessionStorage.removeItem(cacheKey(userId))
+  } catch {
+    // Non-fatal: removal best-effort.
+  }
+}
 
 function timeGreeting(now: Date): string {
   const h = now.getHours()
@@ -18,6 +63,7 @@ function timeGreeting(now: Date): string {
 }
 
 export default function TodayPage() {
+  const router = useRouter()
   const [data, setData] = useState<TodayResponse | null>(null)
   const [error, setError] = useState(false)
   // Default matches SSR; corrected to the visitor's local time on mount so server
@@ -32,25 +78,55 @@ export default function TodayPage() {
   // leads with preference-matched items rather than pure time-sensitivity, so the
   // subtitle below has to drop the "ranked by what is most time-sensitive" claim.
   const shaped =
-    data?.personalization != null &&
-    data.personalization.standing + data.personalization.scoped > 0
+    data?.personalization != null && data.personalization.standing + data.personalization.scoped > 0
 
   useEffect(() => {
     let alive = true
+    const supabase = createBrowserSupabase()
+
     async function load() {
+      // Resolve the signed-in user before touching the cache so we never paint a
+      // prior tenant's brief after an in-tab account switch. getSession reads the
+      // local session (no network), so this stays effectively instant.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!alive) return
+      const uid = session?.user?.id ?? null
+
+      // Paint this user's last brief immediately so a repeat visit shows cards,
+      // not a skeleton. The fetch below silently revalidates against the server.
+      const cached = uid ? readCachedToday(uid) : null
+      if (cached) setData(cached)
+
       try {
         const res = await fetch('/api/today')
         if (!res.ok) {
-          if (alive) setError(true)
+          if (res.status === 401) {
+            // Session is stale or revoked server-side. Never leave protected brief
+            // content on screen for an unauthenticated session: drop the cached
+            // brief, clear the view, and hand off to sign-in (middleware target).
+            if (uid) clearCachedToday(uid)
+            if (alive) {
+              setData(null)
+              router.replace('/login')
+            }
+            return
+          }
+          // Transient failure (e.g. 5xx). Keep a good cached brief on screen
+          // rather than flipping to the error state over a flaky revalidation.
+          if (alive && !cached) setError(true)
           return
         }
         const json = (await res.json()) as TodayResponse
         if (!alive) return
         setData(json)
+        setError(false)
+        if (uid) writeCachedToday(uid, json)
         sessionStorage.setItem('zrux:today-count', String(json.cards.length))
         window.dispatchEvent(new Event('zrux:today-count'))
       } catch {
-        if (alive) setError(true)
+        if (alive && !cached) setError(true)
       }
     }
     void load()
