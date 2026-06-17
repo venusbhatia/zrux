@@ -13,9 +13,9 @@ describe('chooseMeeting', () => {
     const chosen = chooseMeeting([m('past', 500), m('soon', 1500), m('later', 3000)], 1000)
     expect(chosen?.item_id).toBe('soon')
   })
-  it('falls back to the most recent past meeting when none are upcoming', () => {
+  it('returns null when all candidates are in the past', () => {
     const chosen = chooseMeeting([m('old', 1000), m('recent', 4000)], 5000)
-    expect(chosen?.item_id).toBe('recent')
+    expect(chosen).toBeNull()
   })
   it('returns null when there are no candidates', () => {
     expect(chooseMeeting([], 1000)).toBeNull()

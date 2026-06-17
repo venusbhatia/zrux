@@ -24,13 +24,12 @@ interface MeetingMeta {
   participants?: { email?: string }[]
 }
 
-// Soonest upcoming meeting; if none are upcoming (e.g. a backfilled calendar), the
-// most recently started one. Pure + exported for unit testing.
+// Soonest upcoming meeting. Returns null when no future meetings exist — we do NOT
+// fall back to past meetings because the calendar connector only ingests events up to
+// now, so a past-meeting fallback would silently prep for the wrong meeting.
 export function chooseMeeting(cands: MeetingCandidate[], nowMs: number): MeetingCandidate | null {
   const future = cands.filter((c) => c.startMs >= nowMs).sort((a, b) => a.startMs - b.startMs)
-  if (future.length > 0) return future[0]!
-  const past = cands.filter((c) => c.startMs < nowMs).sort((a, b) => b.startMs - a.startMs)
-  return past[0] ?? null
+  return future[0] ?? null
 }
 
 function startMsOf(meta: MeetingMeta): number | null {
