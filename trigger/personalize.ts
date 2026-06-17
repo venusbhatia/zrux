@@ -11,6 +11,7 @@
 //    preference) -> the semantic near-duplicate guard (hasNearDuplicate). Different
 //    concern, different layer; not idempotency.
 
+import '../lib/ws-polyfill'
 import { task } from '@trigger.dev/sdk'
 import { generateObject } from 'ai'
 import { z } from 'zod'

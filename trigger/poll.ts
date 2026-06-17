@@ -3,6 +3,7 @@
 // timestamp prevents duplicate enqueues within a tick. Bounded concurrency is
 // enforced by the ingest task's queue (Phase 5/7 briefing stagger reuses this).
 
+import '../lib/ws-polyfill'
 import { schedules, tasks } from '@trigger.dev/sdk'
 import type { ingestTask } from './ingest'
 import { createServiceClient } from '../lib/db/supabase'
