@@ -19,6 +19,7 @@ export interface GraphEdge {
   confidence: number
   source_item: string | null
   occurred_at: string | null
+  count?: number // corroborating source items for this logical relationship
   from: { id: string; name: string | null }
   to: { id: string; name: string | null }
 }
