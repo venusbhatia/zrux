@@ -41,6 +41,14 @@ Assignment.pdf
 # sentry source-map upload token
 .env.sentry-build-plugin
 
+# vercel link (org/project ids — Vercel's own README says do not commit)
+.vercel
+
+# local agent tooling (Codex) — CLAUDE.md is the tracked source of truth
+.codex/
+.agents/
+AGENTS.md
+
 # Claude Code local artifacts (worktrees, skills, jobs) — keep project config tracked
 .claude/*
 !.claude/settings.json
