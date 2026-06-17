@@ -6,7 +6,7 @@
 
 import { createServiceClient } from '../db/supabase'
 import type { RawItem } from '../connectors/types'
-import { extractTriples, shouldExtract } from './triple-extraction'
+import { extractTriples, isBulkPromotional, shouldExtract } from './triple-extraction'
 
 // Conservative: 0.45 trigram similarity merges "Sarah" / "Sarah Chen" but keeps
 // "Sarah Chen" and "Sarah Connor" apart.
@@ -181,6 +181,9 @@ export async function extractAndResolve(
   itemId: string,
 ): Promise<{ edges: number }> {
   if (!shouldExtract(raw.source, raw.type)) return { edges: 0 }
+  // Skip broadcast/promotional mail: it describes third-party facts, not the
+  // founder's own relationships, and is the dominant source of graph noise.
+  if (isBulkPromotional(raw.author, raw.metadata)) return { edges: 0 }
   const triples = await extractTriples(raw)
   if (triples.length === 0) return { edges: 0 }
 

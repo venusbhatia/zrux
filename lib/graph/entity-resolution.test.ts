@@ -8,7 +8,29 @@ vi.mock('../observability/langfuse', () => ({ aiTelemetry: () => ({ isEnabled: f
 const h = vi.hoisted(() => ({ db: null as unknown }))
 vi.mock('../db/supabase', () => ({ createServiceClient: () => h.db }))
 
-import { normalizeName, resolveEntity } from './entity-resolution'
+// Triple extraction makes an LLM call; assert it is never reached for gated items
+// by throwing if it is.
+const genObject = vi.hoisted(() => vi.fn(async () => ({ object: { triples: [] } })))
+vi.mock('ai', () => ({ generateObject: genObject }))
+
+import { normalizeName, resolveEntity, extractAndResolve } from './entity-resolution'
+import type { RawItem } from '../connectors/types'
+
+function rawItem(over: Partial<RawItem> = {}): RawItem {
+  return {
+    source: 'gmail',
+    type: 'email',
+    externalId: 'x1',
+    title: 'Hello',
+    author: 'Sarah Chen <sarah@northwind.vc>',
+    sourceCreatedAt: new Date('2026-01-01T00:00:00Z'),
+    sourceUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+    metadata: {},
+    body: 'body',
+    raw: null,
+    ...over,
+  }
+}
 
 describe('normalizeName', () => {
   it('trims and collapses internal whitespace', () => {
@@ -84,5 +106,51 @@ describe('resolveEntity', () => {
     h.db = makeDb({})
     const id = await resolveEntity('u1', { name: '   ', type: 'person' })
     expect(id).toBeNull()
+  })
+})
+
+describe('extractAndResolve (broadcast-mail gate)', () => {
+  beforeEach(() => {
+    h.db = makeDb({})
+    genObject.mockClear()
+  })
+
+  it('skips promotional mail before any LLM call', async () => {
+    const res = await extractAndResolve(
+      'u1',
+      rawItem({ metadata: { labelIds: ['CATEGORY_PROMOTIONS', 'INBOX'] } }),
+      'item1',
+    )
+    expect(res).toEqual({ edges: 0 })
+    expect(genObject).not.toHaveBeenCalled()
+  })
+
+  it('skips no-reply / automated senders before any LLM call', async () => {
+    const res = await extractAndResolve(
+      'u1',
+      rawItem({ author: 'Google <no-reply@accounts.google.com>' }),
+      'item2',
+    )
+    expect(res).toEqual({ edges: 0 })
+    expect(genObject).not.toHaveBeenCalled()
+  })
+
+  it('skips low-signal sources (Slack/Sentry) before any LLM call', async () => {
+    const res = await extractAndResolve(
+      'u1',
+      rawItem({ source: 'slack', type: 'message' }),
+      'item3',
+    )
+    expect(res).toEqual({ edges: 0 })
+    expect(genObject).not.toHaveBeenCalled()
+  })
+
+  it('proceeds to extraction for genuine personal mail', async () => {
+    await extractAndResolve(
+      'u1',
+      rawItem({ metadata: { labelIds: ['CATEGORY_PERSONAL', 'INBOX'] } }),
+      'item4',
+    )
+    expect(genObject).toHaveBeenCalledTimes(1)
   })
 })
