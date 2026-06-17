@@ -51,6 +51,8 @@ export const MAX_OUTPUT_TOKENS = {
   plan: 800, // small structured plan
   gloss: 200, // one enrichment sentence
   triples: 1200, // array of extracted triples
+  learn: 1000, // preference candidates (post-answer learning job)
+  judge: 500, // eval groundedness verdict
 } as const
 
 // Read-only chat model. The answer-time model holds zero side-effecting tools;

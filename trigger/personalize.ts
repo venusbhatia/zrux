@@ -15,7 +15,7 @@ import { task } from '@trigger.dev/sdk'
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { propagateAttributes, startActiveObservation } from '@langfuse/tracing'
-import { chatModel, FALLBACK_MODEL, withRetry } from '../lib/llm/gateway'
+import { chatModel, FALLBACK_MODEL, MAX_OUTPUT_TOKENS, withRetry } from '../lib/llm/gateway'
 import {
   aiTelemetry,
   flushTracing,
@@ -61,6 +61,7 @@ export async function runLearn(payload: LearnPreferencesPayload) {
       schema: candidateSchema,
       system: LEARN_SYSTEM,
       prompt: `QUESTION:\n${question}\n\nANSWER:\n${answer}`,
+      maxTokens: MAX_OUTPUT_TOKENS.learn,
       experimental_telemetry: aiTelemetry('learn-preferences'),
     }),
   )
