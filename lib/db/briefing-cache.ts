@@ -4,6 +4,12 @@
 // computes inline); a write error is swallowed (best-effort warm-up). This is the
 // "bulletproof" guarantee: cache-layer problems can never break the Today path.
 // Scoped by user_id first (CLAUDE.md standing order), RLS second.
+//
+// Empty briefings are never cached: a thin/empty result usually means indexing is
+// still in flight or newly connected data hasn't landed yet. Caching it would pin
+// "Nothing needs you" for the full TTL even after real items arrive. Recomputing
+// an empty brief inline is cheap (thin context short-circuits before any LLM
+// call), so we just skip the write and let the next request recompute.
 
 import { createServiceClient } from './supabase'
 import type { TodayResponse } from '@/lib/api/today-schema'
@@ -31,6 +37,9 @@ export async function readBriefing(
 }
 
 export async function writeBriefing(userId: string, payload: TodayResponse): Promise<void> {
+  // Never persist an empty brief (see file header). Skipping the write keeps the
+  // route on its guaranteed inline path until real items land.
+  if (payload.empty) return
   try {
     const db = createServiceClient()
     const { error } = await db.from('briefing').upsert(
