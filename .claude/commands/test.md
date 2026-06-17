@@ -17,6 +17,7 @@ Call the query understanding LLM. Print the full structured plan it returns as J
 
 Stage 2 - Hybrid retrieval
 Run hybrid_search() with the plan's parameters. Print:
+
 - How many chunks came back from the dense CTE
 - How many chunks came back from the keyword CTE
 - How many unique chunks after RRF fusion

@@ -1,4 +1,4 @@
-# CLAUDE.md  zrux Founder AI Assistant
+# CLAUDE.md zrux Founder AI Assistant
 
 This is the single source of truth for every Claude Code session on this project.
 Read it fully before touching any file. These are standing orders, not suggestions.
@@ -9,6 +9,7 @@ Read it fully before touching any file. These are standing orders, not suggestio
 
 **zrux** is a personal AI assistant for a startup founder.
 It ingests context from multiple sources, stores it centrally, and answers grounded questions like:
+
 - What should I focus on today?
 - What should I know before my next meeting?
 - Which tasks are blocked?
@@ -29,23 +30,23 @@ Ingestion plane reads sources on a schedule and writes to Postgres. Answer plane
 
 ## Tech stack (single-valued, all decided)
 
-| Layer | Choice | Why |
-|---|---|---|
-| Framework | Next.js (App Router) + TypeScript | Full-stack, streaming, Vercel deploy |
-| Package manager | pnpm | Faster, consistent |
-| LLM gateway | OpenRouter (claude-sonnet-4-6 primary) | Provided API key, fallback-able |
-| LLM SDK | Vercel AI SDK | Streaming, provider-agnostic, clean DX |
-| Integrations | Composio | Managed OAuth across all sources |
-| Database | Supabase (Postgres + pgvector 0.8.x) | Vector + relational + RLS in one place |
-| Connection pooler | Supavisor (transaction mode) | Prevents connection exhaustion |
-| Cache | Redis via Upstash (serverless, free tier) | Semantic cache + circuit breaker state |
-| Ingestion jobs | Trigger.dev v3 | Long-running, retriable, per-step observability |
-| Embeddings | OpenAI text-embedding-3-large, 1536 dims | Best quality, Matryoshka truncation |
-| Reranker | Cohere Rerank 3.5 | Post-RRF cross-encoder, real quality uplift |
-| Speech to text | Deepgram Nova-3 (batch + streaming) | Diarized transcripts for voice memos and meetings |
-| Observability | Langfuse | Trace every LLM + retrieval call |
-| Deployment | Vercel | Zero config, streaming support |
-| Dev tooling | GStack + GBrain (local machine only, not in repo) | Garry Tan workflow, separate brain for this project |
+| Layer             | Choice                                            | Why                                                 |
+| ----------------- | ------------------------------------------------- | --------------------------------------------------- |
+| Framework         | Next.js (App Router) + TypeScript                 | Full-stack, streaming, Vercel deploy                |
+| Package manager   | pnpm                                              | Faster, consistent                                  |
+| LLM gateway       | OpenRouter (claude-sonnet-4-6 primary)            | Provided API key, fallback-able                     |
+| LLM SDK           | Vercel AI SDK                                     | Streaming, provider-agnostic, clean DX              |
+| Integrations      | Composio                                          | Managed OAuth across all sources                    |
+| Database          | Supabase (Postgres + pgvector 0.8.x)              | Vector + relational + RLS in one place              |
+| Connection pooler | Supavisor (transaction mode)                      | Prevents connection exhaustion                      |
+| Cache             | Redis via Upstash (serverless, free tier)         | Semantic cache + circuit breaker state              |
+| Ingestion jobs    | Trigger.dev v3                                    | Long-running, retriable, per-step observability     |
+| Embeddings        | OpenAI text-embedding-3-large, 1536 dims          | Best quality, Matryoshka truncation                 |
+| Reranker          | Cohere Rerank 3.5                                 | Post-RRF cross-encoder, real quality uplift         |
+| Speech to text    | Deepgram Nova-3 (batch + streaming)               | Diarized transcripts for voice memos and meetings   |
+| Observability     | Langfuse                                          | Trace every LLM + retrieval call                    |
+| Deployment        | Vercel                                            | Zero config, streaming support                      |
+| Dev tooling       | GStack + GBrain (local machine only, not in repo) | Garry Tan workflow, separate brain for this project |
 
 ---
 
@@ -171,11 +172,11 @@ create table edge (
 
 ```typescript
 interface Connector {
-  source: SourceName;
-  load(ctx: SyncContext): AsyncIterable<RawItem>;               // full bulk, first run
-  poll(ctx: SyncContext, since: Date): AsyncIterable<RawItem>;  // incremental by cursor
-  slim(ctx: SyncContext): AsyncIterable<ExternalId>;            // ids only, deletion detection
-  handleEvent?(payload: unknown): AsyncIterable<RawItem>;       // optional webhook
+  source: SourceName
+  load(ctx: SyncContext): AsyncIterable<RawItem> // full bulk, first run
+  poll(ctx: SyncContext, since: Date): AsyncIterable<RawItem> // incremental by cursor
+  slim(ctx: SyncContext): AsyncIterable<ExternalId> // ids only, deletion detection
+  handleEvent?(payload: unknown): AsyncIterable<RawItem> // optional webhook
 }
 ```
 
@@ -285,22 +286,26 @@ $$;
 ## The four prompts (structure these carefully, they are graded)
 
 ### 9.1 Contextual enrichment (ingestion, Haiku-class, prompt-cached)
+
 Prepend one sentence of context to each chunk before embedding.
 Only run for unstructured/long content. Skip for Linear issues, calendar events (provenance is enough).
 Format: `[Source: {source}] [{date}] [{author}]: {gloss}\n\n{body}`
 
 ### 9.2 Query understanding (answer path, one structured call)
+
 Output JSON with: semantic_query, keyword_terms, sources[], after, before, type, status, entities[], intent, time_basis, recency_weight.
 Intent values: daily_briefing | meeting_prep | followup_detection | blocker_scan | investor_summary | company_summary | cross_source | lookup.
 Recency weight: 0.3 for daily_briefing/company_summary. 0 for lookup.
 Time basis: updated for "what's happening". created for "what was decided in Q1".
 
 ### 9.3 Triple extraction (ingestion, gated to high-signal sources only)
+
 Output JSON array of {subject, relation, object, confidence}.
 High-signal sources: email, calendar, Notion, Linear, meetings.
 Diarized speakers pass through entity resolution before becoming edge rows.
 
 ### 9.4 Answer synthesis (answer path, read-only model)
+
 Strict grounding: answer from context only. Cite every claim with [Source, date].
 Refuse to guess if context is thin. Say so explicitly.
 The model holds zero side-effecting tools. Read-only is the primary injection defense.
@@ -336,7 +341,7 @@ Pattern scanning: defense-in-depth only. Do not rely on it. Trivially bypassed b
 - Named exports only. No default exports except Next.js pages.
 - Async/await only. No .then() chains.
 - All Supabase queries scoped by user_id first. RLS as a second layer, not the first.
-- Environment variables: all in .env.local, all prefixed consistently (SUPABASE_, OPENROUTER_, COMPOSIO_, etc). Never hardcode.
+- Environment variables: all in .env.local, all prefixed consistently (SUPABASE*, OPENROUTER*, COMPOSIO\_, etc). Never hardcode.
 - Error handling: wrap API calls in try/catch. Log with context (user_id, source, external_id). Never swallow silently.
 - Migrations: numbered SQL files in /supabase/migrations/. Run with supabase db push.
 - Tests: at minimum, one test per retrieval stage and one per connector. Use vitest.
@@ -348,6 +353,7 @@ Pattern scanning: defense-in-depth only. Do not rely on it. Trivially bypassed b
 This is a 48-hour build on a deadline. The GitHub repo is the submission artifact. Treat every meaningful working state as worth preserving.
 
 **Branch naming:**
+
 ```
 feature/context-engine
 feature/gmail-connector
@@ -359,6 +365,7 @@ fix/hybrid-search-empty-results
 ```
 
 **When to create a new branch and push:**
+
 - After any feature that compiles and does something real, even partially
 - After fixing a bug that was blocking progress
 - After every migration that runs without errors
@@ -367,6 +374,7 @@ fix/hybrid-search-empty-results
 - At minimum every 2 hours regardless of how complete the work feels
 
 **The push habit. After every good enough update, run:**
+
 ```bash
 git add -A
 git commit -m "feat: [what it does in one line]"
@@ -374,6 +382,7 @@ git push origin [branch-name]
 ```
 
 **Commit message format:**
+
 ```
 feat: add hybrid_search function with RRF and recency weighting
 fix: entity resolution now canonicalizes on email before name fuzzy match
@@ -382,6 +391,7 @@ test: add retrieval stage unit tests for plan and rerank
 ```
 
 **Never commit:**
+
 - .env.local or any file with real credentials
 - node_modules
 - .next build output
@@ -480,10 +490,7 @@ The Traces link shows your AI-assisted dev process. A rich commit history on Git
 2. Summarize investor activity this week.
 3. Which tasks are blocked right now?
 
-Bonus (show these if time):
-4. What should I know before my next meeting?
-5. What follow-ups am I missing?
-6. What customer issues are showing up repeatedly?
+Bonus (show these if time): 4. What should I know before my next meeting? 5. What follow-ups am I missing? 6. What customer issues are showing up repeatedly?
 
 ---
 

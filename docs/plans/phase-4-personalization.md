@@ -6,13 +6,13 @@ becoming the retrieval. Grounded in the current codebase (`docs/spec.md` Phase 4
 
 ## 0. Decisions locked (interview)
 
-| # | Decision | Resolution |
-|---|---|---|
-| P4-1 | Write/learn path | **Hybrid**: async auto-inference after each answer (low-confidence, out-of-band) + explicit "remember" (high-confidence). |
-| P4-2 | Read path | **Both, with rails**: capped always-on standing priorities + capped question-scoped semantic memories; parallel to search; best-effort / fail-open. |
-| P4-3 | Intent gating | **Yes**: inject full profile for ordering-sensitive intents; skip for precise `lookup`. |
-| P4-4 | Surfaces | **Ask + Today**, built as one reusable hook so Today/briefing (Phase 6/7) and Search later just "connect the bolts". |
-| P4-5 | Seeding | **Both**: deterministic dev seed script (CI/acceptance) + in-app "remember" affordance (live demo). |
+| #    | Decision         | Resolution                                                                                                                                          |
+| ---- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P4-1 | Write/learn path | **Hybrid**: async auto-inference after each answer (low-confidence, out-of-band) + explicit "remember" (high-confidence).                           |
+| P4-2 | Read path        | **Both, with rails**: capped always-on standing priorities + capped question-scoped semantic memories; parallel to search; best-effort / fail-open. |
+| P4-3 | Intent gating    | **Yes**: inject full profile for ordering-sensitive intents; skip for precise `lookup`.                                                             |
+| P4-4 | Surfaces         | **Ask + Today**, built as one reusable hook so Today/briefing (Phase 6/7) and Search later just "connect the bolts".                                |
+| P4-5 | Seeding          | **Both**: deterministic dev seed script (CI/acceptance) + in-app "remember" affordance (live demo).                                                 |
 
 ## 1. Invariants (non-negotiable)
 
@@ -34,12 +34,13 @@ becoming the retrieval. Grounded in the current codebase (`docs/spec.md` Phase 4
 ## 2. Concept model
 
 A Supermemory **memory** is a small standalone statement about the founder:
-- *"Triage investor threads before anything else."* (standing priority)
-- *"Only interested in senior eng hires, no juniors."* (scoped preference)
+
+- _"Triage investor threads before anything else."_ (standing priority)
+- _"Only interested in senior eng hires, no juniors."_ (scoped preference)
 
 Two kinds, distinguished by `metadata.kind`:
 
-- **`standing`** — always-on priorities that should influence *every* ordering-sensitive answer
+- **`standing`** — always-on priorities that should influence _every_ ordering-sensitive answer
   regardless of the question. Fetched by tag (deterministic), capped.
 - **`scoped`** — preferences that only apply when the question is relevant. Fetched by semantic
   search on the query, capped, relevance-thresholded.
@@ -55,8 +56,8 @@ The single seam that Ask, Today/briefing, and (later) Search all call.
 
 ```ts
 export interface ProfileBlock {
-  block: string          // rendered "FOUNDER PROFILE:" text, or '' when empty
-  memoryIds: string[]    // for observability / trace, not citations
+  block: string // rendered "FOUNDER PROFILE:" text, or '' when empty
+  memoryIds: string[] // for observability / trace, not citations
   standingCount: number
   scopedCount: number
 }
@@ -76,7 +77,9 @@ export async function rememberPreference(
 
 // LIST + CORRECT (explicit path). List standing memories for display; delete one after an
 // ownership check (memory must carry this user's container tag). Used by GET/DELETE /api/remember.
-export async function listStandingPreferences(userId: string): Promise<Array<{ id: string; text: string }>>
+export async function listStandingPreferences(
+  userId: string,
+): Promise<Array<{ id: string; text: string }>>
 export async function forgetPreference(userId: string, memoryId: string): Promise<void>
 
 // AUTO WRITE (low confidence). Called by the Trigger.dev task, not the hot path.
@@ -87,13 +90,15 @@ export async function recordTakeaways(
 ```
 
 Internal:
+
 - `client()` — lazy Supermemory SDK client built from `SUPERMEMORY_API_KEY`. Throws only if a
-  *write* needs it; reads catch-and-empty.
+  _write_ needs it; reads catch-and-empty.
 - `userTag(userId)` → `'user:' + userId`.
 - Bounds from env with safe defaults: `SUPERMEMORY_STANDING_LIMIT=5`, `SUPERMEMORY_SCOPED_LIMIT=3`,
   `SUPERMEMORY_SCOPED_MIN_SCORE=0.5`, `SUPERMEMORY_READ_TIMEOUT_MS=800`.
 
 **Timeout helper — pin the exact pattern (one place, copy nowhere else):**
+
 ```ts
 // lib/personalization/supermemory.ts
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -104,10 +109,12 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([p, timeout]).finally(() => clearTimeout(t)) as Promise<T>
 }
 ```
+
 Every Supermemory read goes through `withTimeout(read(), READ_TIMEOUT_MS, '...')`. Do not inline an
 ad-hoc `Promise.race` anywhere else; one helper, one behavior, no 3am divergence.
 
 **`getProfileBlock` algorithm**
+
 1. `if (!personalizationEnabled(plan.intent)) return EMPTY` — single gate that also covers the master
    kill switch (3.2).
 2. Fire two reads in parallel, each wrapped in `withTimeout(..., READ_TIMEOUT_MS, label)`:
@@ -115,8 +122,8 @@ ad-hoc `Promise.race` anywhere else; one helper, one behavior, no 3am divergence
      sort by confidence/recency, take `STANDING_LIMIT`.
    - **scoped**: `search.execute({ q: plan.semantic_query, containerTags:[tag] })`,
      drop below `SCOPED_MIN_SCORE`, take `SCOPED_LIMIT`.
-   Use `Promise.allSettled` so a slow/failed standing read does not sink a good scoped read (and
-   vice versa); each branch independently degrades to `[]`.
+     Use `Promise.allSettled` so a slow/failed standing read does not sink a good scoped read (and
+     vice versa); each branch independently degrades to `[]`.
 3. On timeout or any throw → that branch yields `[]` (fail-open) and logs once; both empty → EMPTY.
 4. Render: a short header line + deduped bullet lines (standing first, then scoped). Empty in →
    `block: ''`.
@@ -129,8 +136,13 @@ ad-hoc `Promise.race` anywhere else; one helper, one behavior, no 3am divergence
 
 ```ts
 const ORDERING_INTENTS = new Set<Intent>([
-  'daily_briefing', 'cross_source', 'company_summary',
-  'investor_summary', 'followup_detection', 'blocker_scan', 'meeting_prep',
+  'daily_briefing',
+  'cross_source',
+  'company_summary',
+  'investor_summary',
+  'followup_detection',
+  'blocker_scan',
+  'meeting_prep',
 ])
 // One predicate covers BOTH the master kill switch and the per-intent gate, so the two
 // can never diverge into separate code paths. 'lookup' is excluded: precise lookups must
@@ -138,12 +150,14 @@ const ORDERING_INTENTS = new Set<Intent>([
 export const personalizationEnabled = (i: Intent) =>
   process.env.PERSONALIZATION_ENABLED !== 'false' && ORDERING_INTENTS.has(i)
 ```
+
 (Default-on: only an explicit `PERSONALIZATION_ENABLED=false` disables it. The write paths check the
 same flag before enqueuing/writing.)
 
 ## 4. Read-path wiring (Stage 7)
 
 ### 4.1 `lib/retrieval/pipeline.ts`
+
 Add a third best-effort branch to the existing `Promise.all`, mirroring the `expandGraph` wrapper:
 
 ```ts
@@ -157,11 +171,20 @@ const [{ hits, relaxed, diversify }, graph, profile] = await Promise.all([
 ])
 const items = await rollupToItems(userId, hits, { diversify })
 const context = assembleContext(items, graph.facts, profile)
-return { plan, context, relaxed, itemCount: items.length, graphFactCount: graph.facts.length, profile }
+return {
+  plan,
+  context,
+  relaxed,
+  itemCount: items.length,
+  graphFactCount: graph.facts.length,
+  profile,
+}
 ```
+
 Add `profile: ProfileBlock` to `RetrievalResult` (cheap, useful for headers/trace).
 
 ### 4.2 `lib/retrieval/assemble.ts`
+
 `assembleContext(items, graphFacts = [], profile?: ProfileBlock)`. Prepend the profile **first**,
 before relationships and context, so the model reads priorities before content:
 
@@ -180,7 +203,9 @@ Rules: profile adds **no** entries to `citations`; `isThin()` is unchanged (cita
 `profile.block` is empty, output is byte-identical to today.
 
 ### 4.3 `lib/retrieval/synthesize.ts` + `prompts/answer-synthesis.md`
+
 Extend `SYNTH_SYSTEM` (keep the file and the prompt doc in sync, per `CLAUDE.md`):
+
 - Add to the receives-list: "an optional FOUNDER PROFILE of durable preferences."
 - Add a rule: "Use FOUNDER PROFILE only to order and emphasize what you surface. Never treat it as
   a fact source, never cite it, and never invent preferences not written in it. Every factual claim
@@ -190,11 +215,13 @@ Extend `SYNTH_SYSTEM` (keep the file and the prompt doc in sync, per `CLAUDE.md`
 ## 5. Write-path (hybrid: auto + explicit)
 
 ### 5.1 Auto (out-of-band) — `trigger/personalize.ts`
+
 A Trigger.dev task `learnPreferencesTask` triggered fire-and-forget from the answer route's
 existing `onDone` hook (where tracing already closes). Payload: `{ userId, question, answer }`.
 The hot path only enqueues; it never runs the extraction inline.
 
 Task steps:
+
 1. One Haiku-class `generateObject` extraction call (Langfuse-traced via `aiTelemetry`) →
    `{ candidates: [{ text, kind, confidence }] }`. Prompt: "From this Q and the founder's reaction,
    extract only DURABLE preferences/priorities (not one-off facts). Empty array if none."
@@ -204,7 +231,8 @@ Task steps:
 4. `recordTakeaways(userId, survivors)` with `metadata: { provenance:'auto', confidence }`.
 
 **Two distinct dedup concerns — one mechanism each, never both:**
-- **Same-answer double-fire (retry race).** Handled at the *trigger boundary* with Trigger.dev's
+
+- **Same-answer double-fire (retry race).** Handled at the _trigger boundary_ with Trigger.dev's
   built-in `idempotencyKey` (see 5.3). The task simply cannot run twice for one answer, so step 3's
   near-duplicate search can never race itself. This is the only retry-idempotency mechanism — we do
   **not** also store/check a content hash in Supermemory metadata (the rejected duplicate approach).
@@ -215,9 +243,11 @@ Out-of-band on Trigger.dev keeps answer latency untouched and matches the "writt
 conversations" mandate.
 
 ### 5.2 Explicit — `app/api/remember/route.ts` + UI (add, list, and **correct**)
+
 A founder who can add a standing preference will, in the same breath, want to retract one
 ("actually, stop prioritizing investor threads"). An add-only surface is a real product gap that
 surfaces in the walkthrough, so the explicit path is full CRUD-lite from day one:
+
 - `POST /api/remember { text }` → `getUserId(req)` (server-side, same as `/api/answer`) →
   `rememberPreference(userId, text, { kind:'standing' })`. Explicit prefs are standing + confidence 1.
 - `GET /api/remember` → list the founder's standing memories (`{ id, text }[]`) for display.
@@ -231,38 +261,44 @@ surfaces in the walkthrough, so the explicit path is full CRUD-lite from day one
 - Add `forgetPreference(userId, memoryId)` to the module surface (§3.1) alongside `rememberPreference`.
 
 ### 5.3 Answer-route hook — `app/api/answer/route.ts`
+
 In `buildAnswer`'s `onDone(output)` (already the single place the trace closes), after the trace
 flush, fire-and-forget with an idempotency key derived from the answer so a Trigger.dev retry of the
 enqueue (or a duplicate request) cannot spawn a second learning run:
+
 ```ts
-void tasks.trigger(
-  'learn-preferences',
-  { userId, question, answer: output },
-  { idempotencyKey: `learn:${userId}:${hash(question + output)}` },
-).catch((e) => console.error('[personalize] enqueue failed', e))
+void tasks
+  .trigger(
+    'learn-preferences',
+    { userId, question, answer: output },
+    { idempotencyKey: `learn:${userId}:${hash(question + output)}` },
+  )
+  .catch((e) => console.error('[personalize] enqueue failed', e))
 ```
+
 Guarded so it can never throw into the stream or block the response. Skipped on the thin/refusal path
 and when `PERSONALIZATION_ENABLED === 'false'`.
 
 ## 6. Today / briefing readiness (surface 2, "connect the bolts")
 
-The Today briefing (Phase 6 UI / Phase 7 precompute) reuses the *same* primitives — no new wrapper.
+The Today briefing (Phase 6 UI / Phase 7 precompute) reuses the _same_ primitives — no new wrapper.
 A wrapper around `getProfileBlock` + `assembleContext` would add indirection without adding safety,
 so we do not build one. Instead we pin the contract in the plan and let the later phase call the
 existing functions directly:
+
 - `trigger/briefing.ts` (Phase 7) builds its plan with `intent: 'daily_briefing'` (ordering-sensitive,
   so the profile fires through the existing gate) and calls `getProfileBlock(userId, plan)` then
   `assembleContext(items, facts, profile)` exactly as the answer path does. Zero personalization-specific
   code to write there.
 - The only Phase 4 obligation is that `getProfileBlock` and `assembleContext` stay
-  reusable/side-effect-free (they already are). That *is* the seam; no extra export needed.
+  reusable/side-effect-free (they already are). That _is_ the seam; no extra export needed.
 
 No Today UI is built in Phase 4; the personalization primitives it will call already exist after 4b.
 
 ## 7. Seeding (both)
 
 - `scripts/seed-preference.ts` — `tsx` script; writes the canonical demo preference
-  *"Triage investor threads before anything else in the morning."* as a `standing` memory for the
+  _"Triage investor threads before anything else in the morning."_ as a `standing` memory for the
   live-verification tenant (`4847c952-...`). Used by the acceptance test and the eval fixture.
   Idempotent (skip if present).
 - In-app "remember" affordance (5.2) for the live demo narrative.
@@ -302,8 +338,8 @@ No Today UI is built in Phase 4; the personalization primitives it will call alr
 
 ## 11. Acceptance (spec Phase 4 + invariants)
 
-1. **Seeded preference reorders.** With the seeded "investors first" memory, *"What should I focus
-   on today?"* surfaces investor items first; deleting the memory restores prior ordering.
+1. **Seeded preference reorders.** With the seeded "investors first" memory, _"What should I focus
+   on today?"_ surfaces investor items first; deleting the memory restores prior ordering.
 2. **Empty profile = unchanged.** A tenant with no memories gets byte-identical assembly/answers.
 3. **Lookup unaffected.** A precise `lookup` question carries no profile (gate verified in trace).
 4. **Fail-open.** Supermemory unreachable → answers still return, profile empty, no 5xx, one log line.

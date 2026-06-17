@@ -62,16 +62,28 @@ describe('GET /api/connections', () => {
       ],
       error: null,
     }
-    m.syncState = { data: [{ source: 'gmail', last_successful_sync_at: '2026-06-15T01:00:00Z' }], error: null }
+    m.syncState = {
+      data: [{ source: 'gmail', last_successful_sync_at: '2026-06-15T01:00:00Z' }],
+      error: null,
+    }
     m.counts = { gmail: 7 }
 
     const res = await GET(req)
     expect(res.status).toBe(200)
     const { connections } = (await res.json()) as {
-      connections: { source: string; status: string; itemCount: number; lastSyncedAt: string | null }[]
+      connections: {
+        source: string
+        status: string
+        itemCount: number
+        lastSyncedAt: string | null
+      }[]
     }
     const bySource = Object.fromEntries(connections.map((c) => [c.source, c]))
-    expect(bySource.gmail).toMatchObject({ status: 'active', itemCount: 7, lastSyncedAt: '2026-06-15T01:00:00Z' })
+    expect(bySource.gmail).toMatchObject({
+      status: 'active',
+      itemCount: 7,
+      lastSyncedAt: '2026-06-15T01:00:00Z',
+    })
     // Non-active sources are never head-counted and have no sync row.
     expect(bySource.slack).toMatchObject({ status: 'initiated', itemCount: 0, lastSyncedAt: null })
   })

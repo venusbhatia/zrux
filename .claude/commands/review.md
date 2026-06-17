@@ -10,6 +10,7 @@ Run: git diff HEAD and git diff --staged
 Then check every changed file against these rules from CLAUDE.md. Report only real violations, not style opinions.
 
 HARD RULES (flag any violation):
+
 - Every Supabase query must have user_id in the WHERE clause. No exceptions.
 - No source API calls (Gmail, Linear, Slack, etc.) inside any file under app/api/answer/. That path is read-only from Postgres.
 - No ingestion logic inside Next.js API routes. Ingestion lives in trigger/ or lib/ingestion/.
@@ -22,6 +23,7 @@ HARD RULES (flag any violation):
 - pnpm only. If package.json scripts or any file references npm or yarn, flag it.
 
 ASSIGNMENT REQUIREMENTS (check these):
+
 - Does the answer path return cited sources with every response?
 - Is the synthesis prompt instructing the model to be read-only (no side-effecting tools)?
 - Is the retrieval grounded in stored context, not live API calls?
@@ -35,6 +37,7 @@ If ready to commit, suggest a commit message in this format:
 feat/fix/chore/test: [one line describing what changed]
 
 Then remind me to:
+
 1. git add -A
 2. git commit -m "[suggested message]"
 3. git push origin [current branch]

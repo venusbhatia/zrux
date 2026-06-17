@@ -32,8 +32,7 @@ export default function TodayPage() {
   // leads with preference-matched items rather than pure time-sensitivity, so the
   // subtitle below has to drop the "ranked by what is most time-sensitive" claim.
   const shaped =
-    data?.personalization != null &&
-    data.personalization.standing + data.personalization.scoped > 0
+    data?.personalization != null && data.personalization.standing + data.personalization.scoped > 0
 
   useEffect(() => {
     let alive = true

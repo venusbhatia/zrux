@@ -15,10 +15,7 @@ function highlight(text: string, terms: string[]): React.ReactNode {
   const parts = text.split(re)
   return parts.map((part, i) =>
     re.test(part) ? (
-      <mark
-        key={i}
-        className="rounded-[3px] bg-accent/[.16] px-[3px] font-semibold text-accent"
-      >
+      <mark key={i} className="rounded-[3px] bg-accent/[.16] px-[3px] font-semibold text-accent">
         {part}
       </mark>
     ) : (

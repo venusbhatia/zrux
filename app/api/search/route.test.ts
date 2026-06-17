@@ -74,14 +74,25 @@ describe('GET /api/search', () => {
   it('returns an empty result set without running the pipeline when q is missing', async () => {
     const res = await GET(req('http://localhost/api/search'))
     expect(res.status).toBe(200)
-    expect((await res.json()) as unknown).toEqual({ query: '', total: 0, sourceCount: 0, results: [] })
+    expect((await res.json()) as unknown).toEqual({
+      query: '',
+      total: 0,
+      sourceCount: 0,
+      results: [],
+    })
     expect(m.planQuery).not.toHaveBeenCalled()
   })
 
   it('ranks matching items and reports per-query totals and source count', async () => {
     m.rollupToItems.mockResolvedValue([
       item({ item_id: 'i1', source: 'gmail', score: 0.9 }),
-      item({ item_id: 'i2', source: 'linear', type: 'issue', title: 'Term sheet review', score: 0.45 }),
+      item({
+        item_id: 'i2',
+        source: 'linear',
+        type: 'issue',
+        title: 'Term sheet review',
+        score: 0.45,
+      }),
     ])
     const res = await GET(req('http://localhost/api/search?q=term%20sheet'))
     expect(res.status).toBe(200)

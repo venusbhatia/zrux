@@ -1,4 +1,4 @@
-# MEMORY.md  zrux
+# MEMORY.md zrux
 
 This file is auto-managed by Claude Code. It is populated after real sessions via the /memory command.
 Do not manually edit it. Do not duplicate anything already in CLAUDE.md.

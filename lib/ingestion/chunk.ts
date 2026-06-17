@@ -12,7 +12,10 @@ export function chunkText(body: string): string[] {
   if (text.length === 0) return []
   if (text.length <= SINGLE_CHUNK_CEILING) return [text]
 
-  const paragraphs = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
   const chunks: string[] = []
   let current = ''
 

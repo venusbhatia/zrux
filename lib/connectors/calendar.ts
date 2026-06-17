@@ -68,7 +68,11 @@ function toRawItem(e: CalEvent): RawItem | null {
   }
 }
 
-async function* fetchWindow(userId: string, timeMin: string, timeMax: string): AsyncIterable<RawItem> {
+async function* fetchWindow(
+  userId: string,
+  timeMin: string,
+  timeMax: string,
+): AsyncIterable<RawItem> {
   let pageToken: string | undefined
   do {
     const data = (await executeTool(SLUG, userId, {

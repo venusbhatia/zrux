@@ -38,7 +38,16 @@ describe('normalizeItem', () => {
   })
 
   it('coerces missing optionals to null and absent metadata to {}', () => {
-    const row = normalizeItem('u1', raw({ title: undefined, author: undefined, url: undefined, status: undefined, metadata: undefined }))
+    const row = normalizeItem(
+      'u1',
+      raw({
+        title: undefined,
+        author: undefined,
+        url: undefined,
+        status: undefined,
+        metadata: undefined,
+      }),
+    )
     expect(row.title).toBeNull()
     expect(row.author).toBeNull()
     expect(row.url).toBeNull()

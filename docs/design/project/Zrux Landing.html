@@ -1,666 +1,1493 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>zrux. The brief that reads everything.</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<style>
-  :root{
-    --bg:#ffffff;
-    --bg-alt:#f5f5f7;
-    --ink:#1d1d1f;
-    --muted:#6e6e73;
-    --hairline:#d2d2d7;
-    --accent:#0071e3;
-    --accent-press:#006edb;
-    --tile-radius:28px;
-    --card-radius:20px;
-    --shadow:0 24px 60px -24px rgba(0,0,0,.16), 0 8px 24px -12px rgba(0,0,0,.10);
-    --shadow-soft:0 12px 40px -20px rgba(0,0,0,.14);
-    --ease:cubic-bezier(.16,.84,.44,1);
-    --font:"Inter", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>zrux. The brief that reads everything.</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --bg-alt: #f5f5f7;
+        --ink: #1d1d1f;
+        --muted: #6e6e73;
+        --hairline: #d2d2d7;
+        --accent: #0071e3;
+        --accent-press: #006edb;
+        --tile-radius: 28px;
+        --card-radius: 20px;
+        --shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.16), 0 8px 24px -12px rgba(0, 0, 0, 0.1);
+        --shadow-soft: 0 12px 40px -20px rgba(0, 0, 0, 0.14);
+        --ease: cubic-bezier(0.16, 0.84, 0.44, 1);
+        --font: 'Inter', system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      }
 
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-  body{
-    font-family:var(--font);
-    color:var(--ink);
-    background:var(--bg);
-    line-height:1.47;
-    -webkit-font-smoothing:antialiased;
-    text-rendering:optimizeLegibility;
-    overflow-x:hidden;
-  }
-  a{color:inherit;text-decoration:none}
-  img{max-width:100%;display:block}
-  ::selection{background:rgba(0,113,227,.18)}
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        font-family: var(--font);
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.47;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        overflow-x: hidden;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      img {
+        max-width: 100%;
+        display: block;
+      }
+      ::selection {
+        background: rgba(0, 113, 227, 0.18);
+      }
 
-  /* ---------- nav ---------- */
-  .nav{
-    position:fixed;inset:0 0 auto 0;z-index:100;
-    height:48px;
-    display:flex;align-items:center;justify-content:center;
-    background:rgba(255,255,255,.72);
-    backdrop-filter:saturate(180%) blur(20px);
-    -webkit-backdrop-filter:saturate(180%) blur(20px);
-    border-bottom:1px solid rgba(0,0,0,0);
-    transition:border-color .4s ease, background .4s ease;
-  }
-  .nav.scrolled{border-bottom-color:var(--hairline)}
-  .nav-inner{
-    width:100%;max-width:1024px;padding:0 22px;
-    display:flex;align-items:center;justify-content:space-between;
-  }
-  .wordmark{font-weight:600;font-size:19px;letter-spacing:-.01em}
-  .nav-links{display:flex;align-items:center;gap:30px}
-  .nav-links a{font-size:13px;color:var(--ink);opacity:.82;transition:opacity .25s ease}
-  .nav-links a:hover{opacity:1;color:var(--accent)}
-  .nav-cta{
-    font-size:13px;font-weight:500;
-    background:var(--accent);color:#fff;
-    padding:7px 15px;border-radius:980px;
-    transition:transform .2s var(--ease), background .2s ease;
-  }
-  .nav-cta:hover{background:var(--accent-press);color:#fff;transform:translateY(-1px)}
+      /* ---------- nav ---------- */
+      .nav {
+        position: fixed;
+        inset: 0 0 auto 0;
+        z-index: 100;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.72);
+        backdrop-filter: saturate(180%) blur(20px);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        border-bottom: 1px solid rgba(0, 0, 0, 0);
+        transition:
+          border-color 0.4s ease,
+          background 0.4s ease;
+      }
+      .nav.scrolled {
+        border-bottom-color: var(--hairline);
+      }
+      .nav-inner {
+        width: 100%;
+        max-width: 1024px;
+        padding: 0 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .wordmark {
+        font-weight: 600;
+        font-size: 19px;
+        letter-spacing: -0.01em;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+      }
+      .nav-links a {
+        font-size: 13px;
+        color: var(--ink);
+        opacity: 0.82;
+        transition: opacity 0.25s ease;
+      }
+      .nav-links a:hover {
+        opacity: 1;
+        color: var(--accent);
+      }
+      .nav-cta {
+        font-size: 13px;
+        font-weight: 500;
+        background: var(--accent);
+        color: #fff;
+        padding: 7px 15px;
+        border-radius: 980px;
+        transition:
+          transform 0.2s var(--ease),
+          background 0.2s ease;
+      }
+      .nav-cta:hover {
+        background: var(--accent-press);
+        color: #fff;
+        transform: translateY(-1px);
+      }
 
-  /* ---------- shared layout ---------- */
-  .section{padding:clamp(84px,12vh,150px) 22px}
-  .wrap{max-width:980px;margin:0 auto}
-  .center{text-align:center}
-  .eyebrow{
-    font-size:clamp(15px,1.6vw,19px);font-weight:600;
-    color:var(--accent);letter-spacing:-.01em;margin-bottom:10px;
-  }
-  h1,h2,h3{letter-spacing:-.022em;line-height:1.06;font-weight:600}
-  h1{font-size:clamp(40px,7vw,86px)}
-  h2{font-size:clamp(32px,5vw,56px)}
-  h3{font-size:clamp(26px,3.4vw,40px);letter-spacing:-.018em}
-  .lead{
-    font-size:clamp(19px,2.5vw,28px);font-weight:400;line-height:1.32;
-    color:var(--ink);margin-top:18px;
-  }
-  .lead.muted{color:var(--muted)}
-  .sub{font-size:clamp(17px,1.9vw,21px);color:var(--muted);line-height:1.4;margin-top:14px}
+      /* ---------- shared layout ---------- */
+      .section {
+        padding: clamp(84px, 12vh, 150px) 22px;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      .center {
+        text-align: center;
+      }
+      .eyebrow {
+        font-size: clamp(15px, 1.6vw, 19px);
+        font-weight: 600;
+        color: var(--accent);
+        letter-spacing: -0.01em;
+        margin-bottom: 10px;
+      }
+      h1,
+      h2,
+      h3 {
+        letter-spacing: -0.022em;
+        line-height: 1.06;
+        font-weight: 600;
+      }
+      h1 {
+        font-size: clamp(40px, 7vw, 86px);
+      }
+      h2 {
+        font-size: clamp(32px, 5vw, 56px);
+      }
+      h3 {
+        font-size: clamp(26px, 3.4vw, 40px);
+        letter-spacing: -0.018em;
+      }
+      .lead {
+        font-size: clamp(19px, 2.5vw, 28px);
+        font-weight: 400;
+        line-height: 1.32;
+        color: var(--ink);
+        margin-top: 18px;
+      }
+      .lead.muted {
+        color: var(--muted);
+      }
+      .sub {
+        font-size: clamp(17px, 1.9vw, 21px);
+        color: var(--muted);
+        line-height: 1.4;
+        margin-top: 14px;
+      }
 
-  /* link with chevron */
-  .clink{
-    display:inline-flex;align-items:center;gap:3px;
-    color:var(--accent);font-size:clamp(16px,1.9vw,21px);font-weight:400;
-    transition:color .2s ease;
-  }
-  .clink:hover{color:var(--accent-press)}
-  .clink svg{transition:transform .25s var(--ease)}
-  .clink:hover svg{transform:translateX(3px)}
-  .link-row{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;margin-top:26px}
+      /* link with chevron */
+      .clink {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        color: var(--accent);
+        font-size: clamp(16px, 1.9vw, 21px);
+        font-weight: 400;
+        transition: color 0.2s ease;
+      }
+      .clink:hover {
+        color: var(--accent-press);
+      }
+      .clink svg {
+        transition: transform 0.25s var(--ease);
+      }
+      .clink:hover svg {
+        transform: translateX(3px);
+      }
+      .link-row {
+        display: flex;
+        gap: 28px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 26px;
+      }
 
-  .btn{
-    display:inline-flex;align-items:center;justify-content:center;
-    background:var(--accent);color:#fff;font-size:17px;font-weight:500;
-    padding:13px 26px;border-radius:980px;
-    transition:transform .2s var(--ease), background .2s ease;
-  }
-  .btn:hover{background:var(--accent-press);color:#fff;transform:translateY(-1px)}
-  .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--hairline)}
-  .btn.ghost:hover{background:transparent;border-color:var(--accent)}
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--accent);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 500;
+        padding: 13px 26px;
+        border-radius: 980px;
+        transition:
+          transform 0.2s var(--ease),
+          background 0.2s ease;
+      }
+      .btn:hover {
+        background: var(--accent-press);
+        color: #fff;
+        transform: translateY(-1px);
+      }
+      .btn.ghost {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--hairline);
+      }
+      .btn.ghost:hover {
+        background: transparent;
+        border-color: var(--accent);
+      }
 
-  /* ---------- hero ---------- */
-  .hero{
-    position:relative;
-    padding-top:150px;padding-bottom:0;
-    text-align:center;overflow:hidden;
-  }
-  .hero-glow{
-    position:absolute;top:-120px;left:50%;transform:translateX(-50%);
-    width:1100px;height:760px;pointer-events:none;z-index:0;
-    background:
-      radial-gradient(40% 50% at 38% 38%, rgba(120,170,255,.30), transparent 70%),
-      radial-gradient(38% 46% at 66% 44%, rgba(190,160,255,.24), transparent 72%),
-      radial-gradient(46% 50% at 50% 70%, rgba(140,210,255,.20), transparent 72%);
-    filter:blur(26px);
-    animation:drift 16s ease-in-out infinite alternate;
-  }
-  @keyframes drift{
-    from{transform:translateX(-50%) translateY(0) scale(1)}
-    to{transform:translateX(-50%) translateY(24px) scale(1.06)}
-  }
-  .hero .wrap{position:relative;z-index:1}
-  .hero h1{max-width:14ch;margin:0 auto}
-  .hero .lead{max-width:30ch;margin-left:auto;margin-right:auto}
-  .hero-visual{margin:64px auto 0;max-width:560px;position:relative;z-index:1}
+      /* ---------- hero ---------- */
+      .hero {
+        position: relative;
+        padding-top: 150px;
+        padding-bottom: 0;
+        text-align: center;
+        overflow: hidden;
+      }
+      .hero-glow {
+        position: absolute;
+        top: -120px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1100px;
+        height: 760px;
+        pointer-events: none;
+        z-index: 0;
+        background:
+          radial-gradient(40% 50% at 38% 38%, rgba(120, 170, 255, 0.3), transparent 70%),
+          radial-gradient(38% 46% at 66% 44%, rgba(190, 160, 255, 0.24), transparent 72%),
+          radial-gradient(46% 50% at 50% 70%, rgba(140, 210, 255, 0.2), transparent 72%);
+        filter: blur(26px);
+        animation: drift 16s ease-in-out infinite alternate;
+      }
+      @keyframes drift {
+        from {
+          transform: translateX(-50%) translateY(0) scale(1);
+        }
+        to {
+          transform: translateX(-50%) translateY(24px) scale(1.06);
+        }
+      }
+      .hero .wrap {
+        position: relative;
+        z-index: 1;
+      }
+      .hero h1 {
+        max-width: 14ch;
+        margin: 0 auto;
+      }
+      .hero .lead {
+        max-width: 30ch;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .hero-visual {
+        margin: 64px auto 0;
+        max-width: 560px;
+        position: relative;
+        z-index: 1;
+      }
 
-  /* the product brief card (reused) */
-  .brief-card{
-    background:#fff;border:1px solid var(--hairline);
-    border-radius:24px;box-shadow:var(--shadow);
-    padding:22px 22px 12px;text-align:left;
-  }
-  .brief-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
-  .brief-title{font-size:24px;font-weight:600;letter-spacing:-.02em}
-  .brief-date{font-size:13px;color:var(--muted)}
-  .brief-kicker{font-size:13px;color:var(--muted);margin-bottom:16px}
-  .brief-item{
-    display:flex;gap:13px;padding:14px 0;border-top:1px solid #ececef;align-items:flex-start;
-  }
-  .brief-item:first-of-type{border-top:0}
-  .dot{flex:0 0 auto;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--bg-alt)}
-  .dot svg{width:16px;height:16px;color:var(--ink);opacity:.7}
-  .bi-body{flex:1;min-width:0}
-  .bi-text{font-size:15px;line-height:1.4;letter-spacing:-.01em}
-  .tag{
-    display:inline-block;margin-top:7px;font-size:11px;font-weight:600;letter-spacing:.01em;
-    padding:3px 9px;border-radius:980px;background:rgba(0,113,227,.10);color:var(--accent);
-  }
-  .tag.warn{background:rgba(227,89,0,.10);color:#c2540a}
-  .tag.calm{background:rgba(0,0,0,.05);color:var(--muted)}
+      /* the product brief card (reused) */
+      .brief-card {
+        background: #fff;
+        border: 1px solid var(--hairline);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        padding: 22px 22px 12px;
+        text-align: left;
+      }
+      .brief-top {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+      .brief-title {
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .brief-date {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .brief-kicker {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 16px;
+      }
+      .brief-item {
+        display: flex;
+        gap: 13px;
+        padding: 14px 0;
+        border-top: 1px solid #ececef;
+        align-items: flex-start;
+      }
+      .brief-item:first-of-type {
+        border-top: 0;
+      }
+      .dot {
+        flex: 0 0 auto;
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        background: var(--bg-alt);
+      }
+      .dot svg {
+        width: 16px;
+        height: 16px;
+        color: var(--ink);
+        opacity: 0.7;
+      }
+      .bi-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .bi-text {
+        font-size: 15px;
+        line-height: 1.4;
+        letter-spacing: -0.01em;
+      }
+      .tag {
+        display: inline-block;
+        margin-top: 7px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        padding: 3px 9px;
+        border-radius: 980px;
+        background: rgba(0, 113, 227, 0.1);
+        color: var(--accent);
+      }
+      .tag.warn {
+        background: rgba(227, 89, 0, 0.1);
+        color: #c2540a;
+      }
+      .tag.calm {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--muted);
+      }
 
-  /* ---------- signature assembly ---------- */
-  .stage{position:relative;height:260vh;background:var(--bg-alt)}
-  .stage-sticky{
-    position:sticky;top:0;height:100vh;overflow:hidden;
-    display:flex;flex-direction:column;
-  }
-  .stage-head{padding:96px 22px 0;text-align:center;position:relative;z-index:3}
-  .stage-head h2{max-width:18ch;margin:0 auto}
-  .stage-head .sub{max-width:42ch;margin-left:auto;margin-right:auto}
-  .stage-canvas{position:relative;flex:1}
-  .frag,.brief-float{position:absolute;left:50%;top:50%;will-change:transform,opacity}
-  .frag{
-    width:min(248px,72vw);
-    background:#fff;border:1px solid var(--hairline);border-radius:16px;
-    box-shadow:var(--shadow-soft);padding:13px 15px;
-  }
-  .frag .fh{display:flex;align-items:center;gap:8px;margin-bottom:7px}
-  .frag .fh svg{width:15px;height:15px;color:var(--muted)}
-  .frag .fh span{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.01em}
-  .frag p{font-size:13.5px;line-height:1.38;letter-spacing:-.01em;color:var(--ink)}
-  .brief-float{width:min(392px,86vw)}
-  @media (max-width:600px){.stage{height:230vh}}
+      /* ---------- signature assembly ---------- */
+      .stage {
+        position: relative;
+        height: 260vh;
+        background: var(--bg-alt);
+      }
+      .stage-sticky {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .stage-head {
+        padding: 96px 22px 0;
+        text-align: center;
+        position: relative;
+        z-index: 3;
+      }
+      .stage-head h2 {
+        max-width: 18ch;
+        margin: 0 auto;
+      }
+      .stage-head .sub {
+        max-width: 42ch;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .stage-canvas {
+        position: relative;
+        flex: 1;
+      }
+      .frag,
+      .brief-float {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        will-change: transform, opacity;
+      }
+      .frag {
+        width: min(248px, 72vw);
+        background: #fff;
+        border: 1px solid var(--hairline);
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
+        padding: 13px 15px;
+      }
+      .frag .fh {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 7px;
+      }
+      .frag .fh svg {
+        width: 15px;
+        height: 15px;
+        color: var(--muted);
+      }
+      .frag .fh span {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        letter-spacing: 0.01em;
+      }
+      .frag p {
+        font-size: 13.5px;
+        line-height: 1.38;
+        letter-spacing: -0.01em;
+        color: var(--ink);
+      }
+      .brief-float {
+        width: min(392px, 86vw);
+      }
+      @media (max-width: 600px) {
+        .stage {
+          height: 230vh;
+        }
+      }
 
-  /* ---------- generic feature tile ---------- */
-  .tile-visual{margin:54px auto 0;max-width:720px}
+      /* ---------- generic feature tile ---------- */
+      .tile-visual {
+        margin: 54px auto 0;
+        max-width: 720px;
+      }
 
-  /* connect chips */
-  .chips{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:560px;margin:0 auto}
-  .chip{
-    display:inline-flex;align-items:center;gap:9px;
-    background:#fff;border:1px solid var(--hairline);border-radius:980px;
-    padding:11px 18px;font-size:15px;font-weight:500;
-    box-shadow:0 6px 18px -14px rgba(0,0,0,.3);
-    transition:transform .25s var(--ease), box-shadow .25s ease;
-  }
-  .chip:hover{transform:translateY(-3px);box-shadow:0 14px 28px -16px rgba(0,0,0,.3)}
-  .chip svg{width:18px;height:18px;color:var(--ink);opacity:.72}
+      /* connect chips */
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+        max-width: 560px;
+        margin: 0 auto;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        background: #fff;
+        border: 1px solid var(--hairline);
+        border-radius: 980px;
+        padding: 11px 18px;
+        font-size: 15px;
+        font-weight: 500;
+        box-shadow: 0 6px 18px -14px rgba(0, 0, 0, 0.3);
+        transition:
+          transform 0.25s var(--ease),
+          box-shadow 0.25s ease;
+      }
+      .chip:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 14px 28px -16px rgba(0, 0, 0, 0.3);
+      }
+      .chip svg {
+        width: 18px;
+        height: 18px;
+        color: var(--ink);
+        opacity: 0.72;
+      }
 
-  /* chat panel */
-  .panel{
-    background:#fff;border:1px solid var(--hairline);border-radius:var(--card-radius);
-    box-shadow:var(--shadow);padding:22px;max-width:560px;margin:0 auto;text-align:left;
-  }
-  .ask{
-    margin-left:auto;max-width:78%;background:var(--accent);color:#fff;
-    padding:12px 16px;border-radius:18px 18px 6px 18px;font-size:15px;line-height:1.4;
-  }
-  .answer{
-    margin-top:16px;max-width:90%;background:var(--bg-alt);color:var(--ink);
-    padding:14px 16px;border-radius:18px 18px 18px 6px;font-size:15px;line-height:1.46;
-  }
-  .cites{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
-  .cite{
-    font-size:11px;font-weight:600;color:var(--muted);background:#fff;
-    border:1px solid var(--hairline);border-radius:6px;padding:3px 8px;
-  }
+      /* chat panel */
+      .panel {
+        background: #fff;
+        border: 1px solid var(--hairline);
+        border-radius: var(--card-radius);
+        box-shadow: var(--shadow);
+        padding: 22px;
+        max-width: 560px;
+        margin: 0 auto;
+        text-align: left;
+      }
+      .ask {
+        margin-left: auto;
+        max-width: 78%;
+        background: var(--accent);
+        color: #fff;
+        padding: 12px 16px;
+        border-radius: 18px 18px 6px 18px;
+        font-size: 15px;
+        line-height: 1.4;
+      }
+      .answer {
+        margin-top: 16px;
+        max-width: 90%;
+        background: var(--bg-alt);
+        color: var(--ink);
+        padding: 14px 16px;
+        border-radius: 18px 18px 18px 6px;
+        font-size: 15px;
+        line-height: 1.46;
+      }
+      .cites {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+      .cite {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        background: #fff;
+        border: 1px solid var(--hairline);
+        border-radius: 6px;
+        padding: 3px 8px;
+      }
 
-  /* two-up grid */
-  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:1024px;margin:0 auto;padding:0 22px}
-  .cell{
-    background:var(--bg-alt);border-radius:var(--tile-radius);
-    padding:clamp(40px,5vw,64px) clamp(28px,4vw,48px);text-align:center;
-    display:flex;flex-direction:column;
-  }
-  .cell h3{max-width:16ch;margin:0 auto}
-  .cell .sub{max-width:34ch;margin-left:auto;margin-right:auto}
-  .cell-visual{margin-top:auto;padding-top:36px}
-  @media (max-width:760px){.grid-2{grid-template-columns:1fr}}
+      /* two-up grid */
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        max-width: 1024px;
+        margin: 0 auto;
+        padding: 0 22px;
+      }
+      .cell {
+        background: var(--bg-alt);
+        border-radius: var(--tile-radius);
+        padding: clamp(40px, 5vw, 64px) clamp(28px, 4vw, 48px);
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+      }
+      .cell h3 {
+        max-width: 16ch;
+        margin: 0 auto;
+      }
+      .cell .sub {
+        max-width: 34ch;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .cell-visual {
+        margin-top: auto;
+        padding-top: 36px;
+      }
+      @media (max-width: 760px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
 
-  /* node graph */
-  .graph{width:100%;max-width:340px;margin:0 auto;height:200px}
-  .node text{font-family:var(--font);font-size:12px;font-weight:600;fill:var(--ink)}
-  .node circle{fill:#fff;stroke:var(--hairline);stroke-width:1.5}
-  .node.me circle{fill:var(--accent);stroke:var(--accent)}
-  .node.me text{fill:#fff}
-  .edge{stroke:var(--hairline);stroke-width:1.5}
-  .edge-label{font-size:10px;fill:var(--muted);font-weight:500}
+      /* node graph */
+      .graph {
+        width: 100%;
+        max-width: 340px;
+        margin: 0 auto;
+        height: 200px;
+      }
+      .node text {
+        font-family: var(--font);
+        font-size: 12px;
+        font-weight: 600;
+        fill: var(--ink);
+      }
+      .node circle {
+        fill: #fff;
+        stroke: var(--hairline);
+        stroke-width: 1.5;
+      }
+      .node.me circle {
+        fill: var(--accent);
+        stroke: var(--accent);
+      }
+      .node.me text {
+        fill: #fff;
+      }
+      .edge {
+        stroke: var(--hairline);
+        stroke-width: 1.5;
+      }
+      .edge-label {
+        font-size: 10px;
+        fill: var(--muted);
+        font-weight: 500;
+      }
 
-  /* waveform */
-  .wave{display:flex;align-items:center;gap:4px;justify-content:center;height:54px;margin-bottom:14px}
-  .wave i{width:4px;border-radius:2px;background:var(--accent);opacity:.85;animation:pulse 1.4s ease-in-out infinite}
-  @keyframes pulse{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
-  .voice-note{
-    background:#fff;border:1px solid var(--hairline);border-radius:14px;
-    padding:13px 15px;font-size:14px;line-height:1.4;text-align:left;max-width:320px;margin:0 auto;
-  }
-  .voice-meta{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;gap:7px;align-items:center}
+      /* waveform */
+      .wave {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        justify-content: center;
+        height: 54px;
+        margin-bottom: 14px;
+      }
+      .wave i {
+        width: 4px;
+        border-radius: 2px;
+        background: var(--accent);
+        opacity: 0.85;
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scaleY(0.4);
+        }
+        50% {
+          transform: scaleY(1);
+        }
+      }
+      .voice-note {
+        background: #fff;
+        border: 1px solid var(--hairline);
+        border-radius: 14px;
+        padding: 13px 15px;
+        font-size: 14px;
+        line-height: 1.4;
+        text-align: left;
+        max-width: 320px;
+        margin: 0 auto;
+      }
+      .voice-meta {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
 
-  /* statement */
-  .statement{background:#fff;text-align:center}
-  .statement h2{max-width:20ch;margin:0 auto;font-size:clamp(34px,6vw,72px)}
-  .statement .accent{color:var(--accent)}
+      /* statement */
+      .statement {
+        background: #fff;
+        text-align: center;
+      }
+      .statement h2 {
+        max-width: 20ch;
+        margin: 0 auto;
+        font-size: clamp(34px, 6vw, 72px);
+      }
+      .statement .accent {
+        color: var(--accent);
+      }
 
-  /* big closing cta */
-  .cta-final{background:var(--bg-alt);text-align:center}
-  .cta-final h2{max-width:16ch;margin:0 auto}
-  .cta-actions{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:30px}
+      /* big closing cta */
+      .cta-final {
+        background: var(--bg-alt);
+        text-align: center;
+      }
+      .cta-final h2 {
+        max-width: 16ch;
+        margin: 0 auto;
+      }
+      .cta-actions {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 30px;
+      }
 
-  /* ---------- footer ---------- */
-  footer{background:var(--bg-alt);color:var(--muted);font-size:12px;line-height:1.5;padding:40px 22px 28px}
-  .foot-wrap{max-width:1024px;margin:0 auto}
-  .foot-note{border-bottom:1px solid var(--hairline);padding-bottom:18px;margin-bottom:18px}
-  .foot-note p{margin-bottom:10px}
-  .foot-cols{display:grid;grid-template-columns:repeat(4,1fr);gap:26px;padding-bottom:22px;border-bottom:1px solid var(--hairline)}
-  .foot-cols h4{font-size:12px;color:var(--ink);font-weight:600;margin-bottom:10px}
-  .foot-cols a{display:block;color:var(--muted);padding:4px 0;transition:color .2s ease}
-  .foot-cols a:hover{color:var(--ink)}
-  .foot-bottom{padding-top:16px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
-  @media (max-width:680px){.foot-cols{grid-template-columns:1fr 1fr}}
+      /* ---------- footer ---------- */
+      footer {
+        background: var(--bg-alt);
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+        padding: 40px 22px 28px;
+      }
+      .foot-wrap {
+        max-width: 1024px;
+        margin: 0 auto;
+      }
+      .foot-note {
+        border-bottom: 1px solid var(--hairline);
+        padding-bottom: 18px;
+        margin-bottom: 18px;
+      }
+      .foot-note p {
+        margin-bottom: 10px;
+      }
+      .foot-cols {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 26px;
+        padding-bottom: 22px;
+        border-bottom: 1px solid var(--hairline);
+      }
+      .foot-cols h4 {
+        font-size: 12px;
+        color: var(--ink);
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+      .foot-cols a {
+        display: block;
+        color: var(--muted);
+        padding: 4px 0;
+        transition: color 0.2s ease;
+      }
+      .foot-cols a:hover {
+        color: var(--ink);
+      }
+      .foot-bottom {
+        padding-top: 16px;
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      @media (max-width: 680px) {
+        .foot-cols {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
 
-  /* ---------- reveal motion ---------- */
-  .reveal{opacity:0;transform:translateY(30px);transition:opacity .85s var(--ease), transform .85s var(--ease)}
-  .reveal.in{opacity:1;transform:none}
-  .d1{transition-delay:.08s}.d2{transition-delay:.16s}.d3{transition-delay:.24s}.d4{transition-delay:.32s}
+      /* ---------- reveal motion ---------- */
+      .reveal {
+        opacity: 0;
+        transform: translateY(30px);
+        transition:
+          opacity 0.85s var(--ease),
+          transform 0.85s var(--ease);
+      }
+      .reveal.in {
+        opacity: 1;
+        transform: none;
+      }
+      .d1 {
+        transition-delay: 0.08s;
+      }
+      .d2 {
+        transition-delay: 0.16s;
+      }
+      .d3 {
+        transition-delay: 0.24s;
+      }
+      .d4 {
+        transition-delay: 0.32s;
+      }
 
-  @media (prefers-reduced-motion:reduce){
-    html{scroll-behavior:auto}
-    .reveal{opacity:1;transform:none;transition:none}
-    .hero-glow,.wave i{animation:none}
-    *{transition:none !important}
-  }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .reveal {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+        .hero-glow,
+        .wave i {
+          animation: none;
+        }
+        * {
+          transition: none !important;
+        }
+      }
 
-  :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
-</style>
-</head>
-<body>
-
-<!-- nav -->
-<nav class="nav" id="nav">
-  <div class="nav-inner">
-    <a class="wordmark" href="#top">zrux</a>
-    <div class="nav-links">
-      <a href="#assemble">Overview</a>
-      <a href="#connect">How it works</a>
-      <a href="#privacy">Privacy</a>
-    </div>
-    <a class="nav-cta" href="Zrux%20App.dc.html">Open the app</a>
-  </div>
-</nav>
-
-<main id="top">
-
-  <!-- hero -->
-  <header class="hero section">
-    <div class="hero-glow"></div>
-    <div class="wrap">
-      <p class="eyebrow reveal">Meet zrux</p>
-      <h1 class="reveal d1">The brief that reads everything for you.</h1>
-      <p class="lead reveal d2">Email, calendar, Linear, Slack, docs, and meetings, pulled together overnight. Every morning you get one short brief on what actually needs you. Nothing buried. Nothing missed.</p>
-      <div class="link-row reveal d3">
-        <a class="clink" href="#assemble">See how it works
-          <svg width="9" height="14" viewBox="0 0 9 14" fill="none"><path d="M1.5 1l6 6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
-        <a class="clink" href="#ask">Ask it anything
-          <svg width="9" height="14" viewBox="0 0 9 14" fill="none"><path d="M1.5 1l6 6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- nav -->
+    <nav class="nav" id="nav">
+      <div class="nav-inner">
+        <a class="wordmark" href="#top">zrux</a>
+        <div class="nav-links">
+          <a href="#assemble">Overview</a>
+          <a href="#connect">How it works</a>
+          <a href="#privacy">Privacy</a>
+        </div>
+        <a class="nav-cta" href="Zrux%20App.dc.html">Open the app</a>
       </div>
-    </div>
+    </nav>
 
-    <div class="hero-visual reveal d4">
-      <div class="brief-card">
-        <div class="brief-top">
-          <span class="brief-title">Today</span>
-          <span class="brief-date">Monday morning</span>
-        </div>
-        <p class="brief-kicker">Five things worth your attention.</p>
-
-        <div class="brief-item">
-          <span class="dot">
-            <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 6.5L12 13l8.5-6.5" stroke="currentColor" stroke-width="1.7"/></svg>
-          </span>
-          <div class="bi-body">
-            <div class="bi-text">Aria Capital sent the term sheet two days ago and asked for your cap table. They are waiting.</div>
-            <span class="tag">Investor</span>
+    <main id="top">
+      <!-- hero -->
+      <header class="hero section">
+        <div class="hero-glow"></div>
+        <div class="wrap">
+          <p class="eyebrow reveal">Meet zrux</p>
+          <h1 class="reveal d1">The brief that reads everything for you.</h1>
+          <p class="lead reveal d2">
+            Email, calendar, Linear, Slack, docs, and meetings, pulled together overnight. Every
+            morning you get one short brief on what actually needs you. Nothing buried. Nothing
+            missed.
+          </p>
+          <div class="link-row reveal d3">
+            <a class="clink" href="#assemble"
+              >See how it works
+              <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
+                <path
+                  d="M1.5 1l6 6-6 6"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </a>
+            <a class="clink" href="#ask"
+              >Ask it anything
+              <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
+                <path
+                  d="M1.5 1l6 6-6 6"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </a>
           </div>
         </div>
 
-        <div class="brief-item">
-          <span class="dot">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
-          <div class="bi-body">
-            <div class="bi-text">ENG-412 is blocking the launch. Raj flagged it in standup this morning.</div>
-            <span class="tag warn">Blocker</span>
-          </div>
-        </div>
-
-        <div class="brief-item">
-          <span class="dot">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.5 8.5 0 01-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1121 11.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-          </span>
-          <div class="bi-body">
-            <div class="bi-text">Three customers hit the same export bug this week. It is trending up.</div>
-            <span class="tag">Signal</span>
-          </div>
-        </div>
-
-        <div class="brief-item">
-          <span class="dot">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16v13H7l-3 3V4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-          </span>
-          <div class="bi-body">
-            <div class="bi-text">You told Dana you would send the deck before Thursday. It is still in drafts.</div>
-            <span class="tag calm">Follow-up</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <!-- signature: scattered sources assemble into the brief -->
-  <section class="stage" id="assemble">
-    <div class="stage-sticky">
-      <div class="stage-head">
-        <h2 class="reveal">Scattered context, assembled by morning.</h2>
-        <p class="sub reveal d1">zrux reads each source as it changes, keeps a living memory of your company, and writes it all down to one place you can trust.</p>
-      </div>
-      <div class="stage-canvas" id="canvas">
-        <article class="frag" data-x="-32" data-y="-12" data-r="-7">
-          <div class="fh"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 6.5L12 13l8.5-6.5" stroke="currentColor" stroke-width="1.7"/></svg><span>Email</span></div>
-          <p>Term sheet from Aria Capital. They asked for the cap table.</p>
-        </article>
-        <article class="frag" data-x="30" data-y="-16" data-r="6">
-          <div class="fh"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Linear</span></div>
-          <p>ENG-412 marked as blocking the launch by Raj.</p>
-        </article>
-        <article class="frag" data-x="-34" data-y="18" data-r="5">
-          <div class="fh"><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.5 8.5 0 01-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1121 11.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span>Slack</span></div>
-          <p>Customer in #support hit the export bug again.</p>
-        </article>
-        <article class="frag" data-x="33" data-y="16" data-r="-6">
-          <div class="fh"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M4 9h16M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Calendar</span></div>
-          <p>Board meeting Thursday. Deck not sent yet.</p>
-        </article>
-        <article class="frag" data-x="0" data-y="-26" data-r="-3">
-          <div class="fh"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v9m0 0a3 3 0 003-3V6a3 3 0 00-6 0v3a3 3 0 003 3zm-7 0a7 7 0 0014 0M12 18v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Voice memo</span></div>
-          <p>Follow up with the design contractor on onboarding.</p>
-        </article>
-
-        <div class="brief-float" id="briefFloat">
+        <div class="hero-visual reveal d4">
           <div class="brief-card">
             <div class="brief-top">
               <span class="brief-title">Today</span>
               <span class="brief-date">Monday morning</span>
             </div>
-            <p class="brief-kicker">Read overnight. Ranked for you.</p>
+            <p class="brief-kicker">Five things worth your attention.</p>
+
             <div class="brief-item">
-              <span class="dot"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 6.5L12 13l8.5-6.5" stroke="currentColor" stroke-width="1.7"/></svg></span>
-              <div class="bi-body"><div class="bi-text">Reply to Aria Capital with the cap table.</div><span class="tag">Investor</span></div>
+              <span class="dot">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <rect
+                    x="3"
+                    y="5"
+                    width="18"
+                    height="14"
+                    rx="2"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                  <path d="M3.5 6.5L12 13l8.5-6.5" stroke="currentColor" stroke-width="1.7" />
+                </svg>
+              </span>
+              <div class="bi-body">
+                <div class="bi-text">
+                  Aria Capital sent the term sheet two days ago and asked for your cap table. They
+                  are waiting.
+                </div>
+                <span class="tag">Investor</span>
+              </div>
             </div>
+
             <div class="brief-item">
-              <span class="dot"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <div class="bi-body"><div class="bi-text">Unblock ENG-412 before the launch slips.</div><span class="tag warn">Blocker</span></div>
+              <span class="dot">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M5 12l5 5 9-11"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+              <div class="bi-body">
+                <div class="bi-text">
+                  ENG-412 is blocking the launch. Raj flagged it in standup this morning.
+                </div>
+                <span class="tag warn">Blocker</span>
+              </div>
             </div>
+
             <div class="brief-item">
-              <span class="dot"><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.5 8.5 0 01-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1121 11.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
-              <div class="bi-body"><div class="bi-text">The export bug is now three customers. Worth a look.</div><span class="tag">Signal</span></div>
+              <span class="dot">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M21 11.5a8.5 8.5 0 01-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1121 11.5z"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+              <div class="bi-body">
+                <div class="bi-text">
+                  Three customers hit the same export bug this week. It is trending up.
+                </div>
+                <span class="tag">Signal</span>
+              </div>
+            </div>
+
+            <div class="brief-item">
+              <span class="dot">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M4 4h16v13H7l-3 3V4z"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+              <div class="bi-body">
+                <div class="bi-text">
+                  You told Dana you would send the deck before Thursday. It is still in drafts.
+                </div>
+                <span class="tag calm">Follow-up</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
+      </header>
 
-  <!-- connect -->
-  <section class="section center" id="connect">
-    <div class="wrap">
-      <p class="eyebrow reveal">One memory</p>
-      <h2 class="reveal d1">Everything you track, in one place.</h2>
-      <p class="sub reveal d2">Connect the tools you already use. zrux keeps reading them so you do not have to check six tabs to know where things stand.</p>
-    </div>
-    <div class="tile-visual reveal d2">
-      <div class="chips">
-        <span class="chip"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 6.5L12 13l8.5-6.5" stroke="currentColor" stroke-width="1.7"/></svg>Mail</span>
-        <span class="chip"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M4 9h16M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Calendar</span>
-        <span class="chip"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Linear</span>
-        <span class="chip"><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.5 8.5 0 01-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1121 11.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Slack</span>
-        <span class="chip"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16v13H7l-3 3V4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Notion</span>
-        <span class="chip"><svg viewBox="0 0 24 24" fill="none"><path d="M9 18l-5-6 5-6M15 6l5 6-5 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>GitHub</span>
-        <span class="chip"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v9m0 0a3 3 0 003-3V6a3 3 0 00-6 0v3a3 3 0 003 3zm-7 0a7 7 0 0014 0M12 18v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Voice</span>
-      </div>
-    </div>
-  </section>
+      <!-- signature: scattered sources assemble into the brief -->
+      <section class="stage" id="assemble">
+        <div class="stage-sticky">
+          <div class="stage-head">
+            <h2 class="reveal">Scattered context, assembled by morning.</h2>
+            <p class="sub reveal d1">
+              zrux reads each source as it changes, keeps a living memory of your company, and
+              writes it all down to one place you can trust.
+            </p>
+          </div>
+          <div class="stage-canvas" id="canvas">
+            <article class="frag" data-x="-32" data-y="-12" data-r="-7">
+              <div class="fh">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <rect
+                    x="3"
+                    y="5"
+                    width="18"
+                    height="14"
+                    rx="2"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                  <path d="M3.5 6.5L12 13l8.5-6.5" stroke="currentColor" stroke-width="1.7" /></svg
+                ><span>Email</span>
+              </div>
+              <p>Term sheet from Aria Capital. They asked for the cap table.</p>
+            </article>
+            <article class="frag" data-x="30" data-y="-16" data-r="6">
+              <div class="fh">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M5 12l5 5 9-11"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  /></svg
+                ><span>Linear</span>
+              </div>
+              <p>ENG-412 marked as blocking the launch by Raj.</p>
+            </article>
+            <article class="frag" data-x="-34" data-y="18" data-r="5">
+              <div class="fh">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M21 11.5a8.5 8.5 0 01-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1121 11.5z"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linejoin="round"
+                  /></svg
+                ><span>Slack</span>
+              </div>
+              <p>Customer in #support hit the export bug again.</p>
+            </article>
+            <article class="frag" data-x="33" data-y="16" data-r="-6">
+              <div class="fh">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <rect
+                    x="4"
+                    y="5"
+                    width="16"
+                    height="15"
+                    rx="2"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                  <path
+                    d="M4 9h16M8 3v4M16 3v4"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                  /></svg
+                ><span>Calendar</span>
+              </div>
+              <p>Board meeting Thursday. Deck not sent yet.</p>
+            </article>
+            <article class="frag" data-x="0" data-y="-26" data-r="-3">
+              <div class="fh">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M12 3v9m0 0a3 3 0 003-3V6a3 3 0 00-6 0v3a3 3 0 003 3zm-7 0a7 7 0 0014 0M12 18v3"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                  /></svg
+                ><span>Voice memo</span>
+              </div>
+              <p>Follow up with the design contractor on onboarding.</p>
+            </article>
 
-  <!-- ask -->
-  <section class="section center" id="ask" style="background:var(--bg-alt)">
-    <div class="wrap">
-      <p class="eyebrow reveal">Grounded answers</p>
-      <h2 class="reveal d1">Ask anything. Get the real answer.</h2>
-      <p class="sub reveal d2">Every answer comes from your own context and points back to where it came from. If zrux is not sure, it says so instead of guessing.</p>
-    </div>
-    <div class="tile-visual reveal d2">
-      <div class="panel">
-        <div class="ask">What should I focus on before the board meeting?</div>
-        <div class="answer">
-          Three things stand out. Aria Capital is still waiting on the cap table you promised. ENG-412 is blocking the launch you plan to announce. And the export bug now affects three customers, so expect it to come up.
-          <div class="cites">
-            <span class="cite">Mail, 2 days ago</span>
-            <span class="cite">Linear, ENG-412</span>
-            <span class="cite">Slack, #support</span>
+            <div class="brief-float" id="briefFloat">
+              <div class="brief-card">
+                <div class="brief-top">
+                  <span class="brief-title">Today</span>
+                  <span class="brief-date">Monday morning</span>
+                </div>
+                <p class="brief-kicker">Read overnight. Ranked for you.</p>
+                <div class="brief-item">
+                  <span class="dot"
+                    ><svg viewBox="0 0 24 24" fill="none">
+                      <rect
+                        x="3"
+                        y="5"
+                        width="18"
+                        height="14"
+                        rx="2"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                      />
+                      <path
+                        d="M3.5 6.5L12 13l8.5-6.5"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                      /></svg
+                  ></span>
+                  <div class="bi-body">
+                    <div class="bi-text">Reply to Aria Capital with the cap table.</div>
+                    <span class="tag">Investor</span>
+                  </div>
+                </div>
+                <div class="brief-item">
+                  <span class="dot"
+                    ><svg viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M5 12l5 5 9-11"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      /></svg
+                  ></span>
+                  <div class="bi-body">
+                    <div class="bi-text">Unblock ENG-412 before the launch slips.</div>
+                    <span class="tag warn">Blocker</span>
+                  </div>
+                </div>
+                <div class="brief-item">
+                  <span class="dot"
+                    ><svg viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M21 11.5a8.5 8.5 0 01-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1121 11.5z"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linejoin="round"
+                      /></svg
+                  ></span>
+                  <div class="bi-body">
+                    <div class="bi-text">The export bug is now three customers. Worth a look.</div>
+                    <span class="tag">Signal</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
+      </section>
 
-  <!-- two-up: graph + voice -->
-  <section class="section" style="padding-left:0;padding-right:0">
-    <div class="grid-2">
-      <div class="cell reveal">
-        <h3>See who connects you to who.</h3>
-        <p class="sub">zrux maps the people, companies, and projects across your tools, so a name always comes with context.</p>
-        <div class="cell-visual">
-          <svg class="graph" viewBox="0 0 340 200">
-            <line class="edge" x1="170" y1="100" x2="78" y2="52"/>
-            <line class="edge" x1="170" y1="100" x2="262" y2="56"/>
-            <line class="edge" x1="170" y1="100" x2="80" y2="150"/>
-            <line class="edge" x1="170" y1="100" x2="258" y2="148"/>
-            <text class="edge-label" x="108" y="70">intro</text>
-            <text class="edge-label" x="205" y="74">invested</text>
-            <text class="edge-label" x="106" y="140">works with</text>
-            <g class="node me"><circle cx="170" cy="100" r="30"/><text x="170" y="104" text-anchor="middle">You</text></g>
-            <g class="node"><circle cx="78" cy="52" r="24"/><text x="78" y="56" text-anchor="middle">Raj</text></g>
-            <g class="node"><circle cx="262" cy="56" r="26"/><text x="262" y="60" text-anchor="middle">Aria</text></g>
-            <g class="node"><circle cx="80" cy="150" r="24"/><text x="80" y="154" text-anchor="middle">Dana</text></g>
-            <g class="node"><circle cx="258" cy="148" r="24"/><text x="258" y="152" text-anchor="middle">ACME</text></g>
-          </svg>
+      <!-- connect -->
+      <section class="section center" id="connect">
+        <div class="wrap">
+          <p class="eyebrow reveal">One memory</p>
+          <h2 class="reveal d1">Everything you track, in one place.</h2>
+          <p class="sub reveal d2">
+            Connect the tools you already use. zrux keeps reading them so you do not have to check
+            six tabs to know where things stand.
+          </p>
+        </div>
+        <div class="tile-visual reveal d2">
+          <div class="chips">
+            <span class="chip"
+              ><svg viewBox="0 0 24 24" fill="none">
+                <rect
+                  x="3"
+                  y="5"
+                  width="18"
+                  height="14"
+                  rx="2"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                />
+                <path d="M3.5 6.5L12 13l8.5-6.5" stroke="currentColor" stroke-width="1.7" /></svg
+              >Mail</span
+            >
+            <span class="chip"
+              ><svg viewBox="0 0 24 24" fill="none">
+                <rect
+                  x="4"
+                  y="5"
+                  width="16"
+                  height="15"
+                  rx="2"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                />
+                <path
+                  d="M4 9h16M8 3v4M16 3v4"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                /></svg
+              >Calendar</span
+            >
+            <span class="chip"
+              ><svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M5 12l5 5 9-11"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                /></svg
+              >Linear</span
+            >
+            <span class="chip"
+              ><svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M21 11.5a8.5 8.5 0 01-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1121 11.5z"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linejoin="round"
+                /></svg
+              >Slack</span
+            >
+            <span class="chip"
+              ><svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4 4h16v13H7l-3 3V4z"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linejoin="round"
+                /></svg
+              >Notion</span
+            >
+            <span class="chip"
+              ><svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M9 18l-5-6 5-6M15 6l5 6-5 6"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                /></svg
+              >GitHub</span
+            >
+            <span class="chip"
+              ><svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 3v9m0 0a3 3 0 003-3V6a3 3 0 00-6 0v3a3 3 0 003 3zm-7 0a7 7 0 0014 0M12 18v3"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                /></svg
+              >Voice</span
+            >
+          </div>
+        </div>
+      </section>
+
+      <!-- ask -->
+      <section class="section center" id="ask" style="background: var(--bg-alt)">
+        <div class="wrap">
+          <p class="eyebrow reveal">Grounded answers</p>
+          <h2 class="reveal d1">Ask anything. Get the real answer.</h2>
+          <p class="sub reveal d2">
+            Every answer comes from your own context and points back to where it came from. If zrux
+            is not sure, it says so instead of guessing.
+          </p>
+        </div>
+        <div class="tile-visual reveal d2">
+          <div class="panel">
+            <div class="ask">What should I focus on before the board meeting?</div>
+            <div class="answer">
+              Three things stand out. Aria Capital is still waiting on the cap table you promised.
+              ENG-412 is blocking the launch you plan to announce. And the export bug now affects
+              three customers, so expect it to come up.
+              <div class="cites">
+                <span class="cite">Mail, 2 days ago</span>
+                <span class="cite">Linear, ENG-412</span>
+                <span class="cite">Slack, #support</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- two-up: graph + voice -->
+      <section class="section" style="padding-left: 0; padding-right: 0">
+        <div class="grid-2">
+          <div class="cell reveal">
+            <h3>See who connects you to who.</h3>
+            <p class="sub">
+              zrux maps the people, companies, and projects across your tools, so a name always
+              comes with context.
+            </p>
+            <div class="cell-visual">
+              <svg class="graph" viewBox="0 0 340 200">
+                <line class="edge" x1="170" y1="100" x2="78" y2="52" />
+                <line class="edge" x1="170" y1="100" x2="262" y2="56" />
+                <line class="edge" x1="170" y1="100" x2="80" y2="150" />
+                <line class="edge" x1="170" y1="100" x2="258" y2="148" />
+                <text class="edge-label" x="108" y="70">intro</text>
+                <text class="edge-label" x="205" y="74">invested</text>
+                <text class="edge-label" x="106" y="140">works with</text>
+                <g class="node me">
+                  <circle cx="170" cy="100" r="30" />
+                  <text x="170" y="104" text-anchor="middle">You</text>
+                </g>
+                <g class="node">
+                  <circle cx="78" cy="52" r="24" />
+                  <text x="78" y="56" text-anchor="middle">Raj</text>
+                </g>
+                <g class="node">
+                  <circle cx="262" cy="56" r="26" />
+                  <text x="262" y="60" text-anchor="middle">Aria</text>
+                </g>
+                <g class="node">
+                  <circle cx="80" cy="150" r="24" />
+                  <text x="80" y="154" text-anchor="middle">Dana</text>
+                </g>
+                <g class="node">
+                  <circle cx="258" cy="148" r="24" />
+                  <text x="258" y="152" text-anchor="middle">ACME</text>
+                </g>
+              </svg>
+            </div>
+          </div>
+
+          <div class="cell reveal d1">
+            <h3>Say it, and it is in.</h3>
+            <p class="sub">
+              Talk through a thought between meetings. zrux captures it, cleans it up, and files it
+              with everything else.
+            </p>
+            <div class="cell-visual">
+              <div class="wave" aria-hidden="true">
+                <i style="height: 40px; animation-delay: 0s"></i
+                ><i style="height: 54px; animation-delay: 0.1s"></i>
+                <i style="height: 30px; animation-delay: 0.2s"></i
+                ><i style="height: 48px; animation-delay: 0.3s"></i>
+                <i style="height: 22px; animation-delay: 0.15s"></i
+                ><i style="height: 46px; animation-delay: 0.25s"></i>
+                <i style="height: 34px; animation-delay: 0.05s"></i
+                ><i style="height: 52px; animation-delay: 0.35s"></i>
+                <i style="height: 26px; animation-delay: 0.2s"></i
+                ><i style="height: 44px; animation-delay: 0.1s"></i>
+              </div>
+              <div class="voice-note">
+                <div class="voice-meta">Voice memo, 0:14</div>
+                Follow up with the design contractor about the onboarding flow before we ship.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- personalization -->
+      <section class="section center">
+        <div class="wrap">
+          <p class="eyebrow reveal">Tuned to you</p>
+          <h2 class="reveal d1">It learns what you care about.</h2>
+          <p class="sub reveal d2">
+            zrux notices what you act on and what you skip, so the brief starts to sound like it was
+            written by someone who knows the company as well as you do.
+          </p>
+        </div>
+      </section>
+
+      <!-- statement -->
+      <section class="section statement">
+        <div class="wrap">
+          <h2 class="reveal">Less noise. <span class="accent">More judgment.</span></h2>
+        </div>
+      </section>
+
+      <!-- privacy -->
+      <section class="section center" id="privacy" style="background: var(--bg-alt)">
+        <div class="wrap">
+          <p class="eyebrow reveal">Yours alone</p>
+          <h2 class="reveal d1">Your data stays your data.</h2>
+          <p class="sub reveal d2">
+            zrux reads your tools to answer your questions. It does not train on your data and it
+            does not share it. Read access stays read access, and nothing acts on your behalf
+            without you.
+          </p>
+        </div>
+      </section>
+
+      <!-- final cta -->
+      <section class="section cta-final" id="start">
+        <div class="wrap">
+          <p class="eyebrow reveal">Start tomorrow morning</p>
+          <h2 class="reveal d1">Wake up already caught up.</h2>
+          <div class="cta-actions reveal d2">
+            <a class="btn" href="Zrux%20App.dc.html">Open the app</a>
+            <a class="btn ghost" href="#assemble">See how it works</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="foot-wrap">
+        <div class="foot-note">
+          <p>
+            zrux connects to third party tools using read access that you grant and can revoke at
+            any time. Source names shown above refer to the tools you choose to connect and are used
+            only to describe those integrations.
+          </p>
+          <p>
+            Demonstration content on this page is illustrative. Names, messages, and figures shown
+            in the brief are examples, not real customer data.
+          </p>
+        </div>
+        <div class="foot-cols">
+          <div>
+            <h4>Product</h4>
+            <a href="#assemble">Overview</a>
+            <a href="#connect">Integrations</a>
+            <a href="#ask">Answers</a>
+            <a href="#privacy">Privacy</a>
+          </div>
+          <div>
+            <h4>Company</h4>
+            <a href="#top">About</a>
+            <a href="#top">Careers</a>
+            <a href="#top">Blog</a>
+            <a href="#top">Contact</a>
+          </div>
+          <div>
+            <h4>Developers</h4>
+            <a href="#top">Documentation</a>
+            <a href="#top">API</a>
+            <a href="#top">Status</a>
+            <a href="#top">Changelog</a>
+          </div>
+          <div>
+            <h4>Get started</h4>
+            <a href="#start">Create account</a>
+            <a href="#top">Pricing</a>
+            <a href="#top">Security</a>
+            <a href="#top">Support</a>
+          </div>
+        </div>
+        <div class="foot-bottom">
+          <span>Copyright 2026 zrux. All rights reserved.</span>
+          <span>Terms of Use &nbsp; Privacy Policy &nbsp; Sales and Refunds</span>
         </div>
       </div>
+    </footer>
 
-      <div class="cell reveal d1">
-        <h3>Say it, and it is in.</h3>
-        <p class="sub">Talk through a thought between meetings. zrux captures it, cleans it up, and files it with everything else.</p>
-        <div class="cell-visual">
-          <div class="wave" aria-hidden="true">
-            <i style="height:40px;animation-delay:0s"></i><i style="height:54px;animation-delay:.1s"></i>
-            <i style="height:30px;animation-delay:.2s"></i><i style="height:48px;animation-delay:.3s"></i>
-            <i style="height:22px;animation-delay:.15s"></i><i style="height:46px;animation-delay:.25s"></i>
-            <i style="height:34px;animation-delay:.05s"></i><i style="height:52px;animation-delay:.35s"></i>
-            <i style="height:26px;animation-delay:.2s"></i><i style="height:44px;animation-delay:.1s"></i>
-          </div>
-          <div class="voice-note">
-            <div class="voice-meta">Voice memo, 0:14</div>
-            Follow up with the design contractor about the onboarding flow before we ship.
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+    <script>
+      ;(function () {
+        var reduce =
+          window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-  <!-- personalization -->
-  <section class="section center">
-    <div class="wrap">
-      <p class="eyebrow reveal">Tuned to you</p>
-      <h2 class="reveal d1">It learns what you care about.</h2>
-      <p class="sub reveal d2">zrux notices what you act on and what you skip, so the brief starts to sound like it was written by someone who knows the company as well as you do.</p>
-    </div>
-  </section>
+        // nav hairline on scroll
+        var nav = document.getElementById('nav')
+        function navState() {
+          if (nav) {
+            nav.classList.toggle('scrolled', window.scrollY > 8)
+          }
+        }
+        navState()
+        window.addEventListener('scroll', navState, { passive: true })
 
-  <!-- statement -->
-  <section class="section statement">
-    <div class="wrap">
-      <h2 class="reveal">Less noise. <span class="accent">More judgment.</span></h2>
-    </div>
-  </section>
+        // reveal on enter
+        var reveals = Array.prototype.slice.call(document.querySelectorAll('.reveal'))
+        if (reduce || !('IntersectionObserver' in window)) {
+          reveals.forEach(function (el) {
+            el.classList.add('in')
+          })
+        } else {
+          var io = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (e) {
+                if (e.isIntersecting) {
+                  e.target.classList.add('in')
+                  io.unobserve(e.target)
+                }
+              })
+            },
+            { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
+          )
+          reveals.forEach(function (el) {
+            io.observe(el)
+          })
+        }
 
-  <!-- privacy -->
-  <section class="section center" id="privacy" style="background:var(--bg-alt)">
-    <div class="wrap">
-      <p class="eyebrow reveal">Yours alone</p>
-      <h2 class="reveal d1">Your data stays your data.</h2>
-      <p class="sub reveal d2">zrux reads your tools to answer your questions. It does not train on your data and it does not share it. Read access stays read access, and nothing acts on your behalf without you.</p>
-    </div>
-  </section>
+        // signature assembly scrub
+        var stage = document.getElementById('assemble')
+        var frags = Array.prototype.slice.call(document.querySelectorAll('.frag'))
+        var brief = document.getElementById('briefFloat')
 
-  <!-- final cta -->
-  <section class="section cta-final" id="start">
-    <div class="wrap">
-      <p class="eyebrow reveal">Start tomorrow morning</p>
-      <h2 class="reveal d1">Wake up already caught up.</h2>
-      <div class="cta-actions reveal d2">
-        <a class="btn" href="Zrux%20App.dc.html">Open the app</a>
-        <a class="btn ghost" href="#assemble">See how it works</a>
-      </div>
-    </div>
-  </section>
+        function clamp(v, a, b) {
+          return Math.max(a, Math.min(b, v))
+        }
+        function easeOut(t) {
+          return 1 - Math.pow(1 - t, 3)
+        }
 
-</main>
+        function layout() {
+          if (!stage || !brief) return
+          if (reduce) {
+            frags.forEach(function (f) {
+              f.style.opacity = 0
+            })
+            brief.style.opacity = 1
+            brief.style.transform = 'translate(-50%,-50%) scale(1)'
+            return
+          }
+          var rect = stage.getBoundingClientRect()
+          var total = rect.height - window.innerHeight
+          var p = clamp(-rect.top / total, 0, 1)
 
-<footer>
-  <div class="foot-wrap">
-    <div class="foot-note">
-      <p>zrux connects to third party tools using read access that you grant and can revoke at any time. Source names shown above refer to the tools you choose to connect and are used only to describe those integrations.</p>
-      <p>Demonstration content on this page is illustrative. Names, messages, and figures shown in the brief are examples, not real customer data.</p>
-    </div>
-    <div class="foot-cols">
-      <div>
-        <h4>Product</h4>
-        <a href="#assemble">Overview</a>
-        <a href="#connect">Integrations</a>
-        <a href="#ask">Answers</a>
-        <a href="#privacy">Privacy</a>
-      </div>
-      <div>
-        <h4>Company</h4>
-        <a href="#top">About</a>
-        <a href="#top">Careers</a>
-        <a href="#top">Blog</a>
-        <a href="#top">Contact</a>
-      </div>
-      <div>
-        <h4>Developers</h4>
-        <a href="#top">Documentation</a>
-        <a href="#top">API</a>
-        <a href="#top">Status</a>
-        <a href="#top">Changelog</a>
-      </div>
-      <div>
-        <h4>Get started</h4>
-        <a href="#start">Create account</a>
-        <a href="#top">Pricing</a>
-        <a href="#top">Security</a>
-        <a href="#top">Support</a>
-      </div>
-    </div>
-    <div class="foot-bottom">
-      <span>Copyright 2026 zrux. All rights reserved.</span>
-      <span>Terms of Use &nbsp; Privacy Policy &nbsp; Sales and Refunds</span>
-    </div>
-  </div>
-</footer>
+          var conv = easeOut(clamp(p / 0.68, 0, 1))
+          frags.forEach(function (f) {
+            var sx = parseFloat(f.dataset.x) || 0
+            var sy = parseFloat(f.dataset.y) || 0
+            var sr = parseFloat(f.dataset.r) || 0
+            var x = sx * (1 - conv)
+            var y = sy * (1 - conv)
+            var s = 1 - 0.28 * conv
+            var rot = sr * (1 - conv)
+            var fade = 1 - clamp((p - 0.42) / 0.26, 0, 1)
+            f.style.transform =
+              'translate(calc(-50% + ' +
+              x +
+              'vw), calc(-50% + ' +
+              y +
+              'vh)) scale(' +
+              s +
+              ') rotate(' +
+              rot +
+              'deg)'
+            f.style.opacity = fade
+          })
 
-<script>
-(function(){
-  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          var bp = clamp((p - 0.36) / 0.4, 0, 1)
+          brief.style.opacity = bp
+          brief.style.transform = 'translate(-50%,-50%) scale(' + (0.92 + 0.08 * easeOut(bp)) + ')'
+        }
 
-  // nav hairline on scroll
-  var nav = document.getElementById('nav');
-  function navState(){ if(nav){ nav.classList.toggle('scrolled', window.scrollY > 8); } }
-  navState();
-  window.addEventListener('scroll', navState, {passive:true});
-
-  // reveal on enter
-  var reveals = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
-  if(reduce || !('IntersectionObserver' in window)){
-    reveals.forEach(function(el){ el.classList.add('in'); });
-  } else {
-    var io = new IntersectionObserver(function(entries){
-      entries.forEach(function(e){
-        if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
-      });
-    }, {threshold:0.12, rootMargin:'0px 0px -8% 0px'});
-    reveals.forEach(function(el){ io.observe(el); });
-  }
-
-  // signature assembly scrub
-  var stage = document.getElementById('assemble');
-  var frags = Array.prototype.slice.call(document.querySelectorAll('.frag'));
-  var brief = document.getElementById('briefFloat');
-
-  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-  function easeOut(t){ return 1 - Math.pow(1 - t, 3); }
-
-  function layout(){
-    if(!stage || !brief) return;
-    if(reduce){
-      frags.forEach(function(f){ f.style.opacity = 0; });
-      brief.style.opacity = 1;
-      brief.style.transform = 'translate(-50%,-50%) scale(1)';
-      return;
-    }
-    var rect = stage.getBoundingClientRect();
-    var total = rect.height - window.innerHeight;
-    var p = clamp(-rect.top / total, 0, 1);
-
-    var conv = easeOut(clamp(p / 0.68, 0, 1));
-    frags.forEach(function(f){
-      var sx = parseFloat(f.dataset.x) || 0;
-      var sy = parseFloat(f.dataset.y) || 0;
-      var sr = parseFloat(f.dataset.r) || 0;
-      var x = sx * (1 - conv);
-      var y = sy * (1 - conv);
-      var s = 1 - 0.28 * conv;
-      var rot = sr * (1 - conv);
-      var fade = 1 - clamp((p - 0.42) / 0.26, 0, 1);
-      f.style.transform = 'translate(calc(-50% + ' + x + 'vw), calc(-50% + ' + y + 'vh)) scale(' + s + ') rotate(' + rot + 'deg)';
-      f.style.opacity = fade;
-    });
-
-    var bp = clamp((p - 0.36) / 0.4, 0, 1);
-    brief.style.opacity = bp;
-    brief.style.transform = 'translate(-50%,-50%) scale(' + (0.92 + 0.08 * easeOut(bp)) + ')';
-  }
-
-  var ticking = false;
-  function onScroll(){
-    if(ticking) return;
-    ticking = true;
-    requestAnimationFrame(function(){ layout(); ticking = false; });
-  }
-  layout();
-  window.addEventListener('scroll', onScroll, {passive:true});
-  window.addEventListener('resize', layout);
-})();
-</script>
-</body>
+        var ticking = false
+        function onScroll() {
+          if (ticking) return
+          ticking = true
+          requestAnimationFrame(function () {
+            layout()
+            ticking = false
+          })
+        }
+        layout()
+        window.addEventListener('scroll', onScroll, { passive: true })
+        window.addEventListener('resize', layout)
+      })()
+    </script>
+  </body>
 </html>

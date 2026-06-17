@@ -22,14 +22,14 @@ describe('isStructured', () => {
 
 describe('provenanceLine', () => {
   it('slices the date to YYYY-MM-DD and includes the author bracket when present', () => {
-    expect(provenanceLine({ source: 'gmail', author: 'sarah@x.com' }, '2026-06-14T10:00:00.000Z')).toBe(
-      '[Source: gmail] [2026-06-14] [sarah@x.com]',
-    )
+    expect(
+      provenanceLine({ source: 'gmail', author: 'sarah@x.com' }, '2026-06-14T10:00:00.000Z'),
+    ).toBe('[Source: gmail] [2026-06-14] [sarah@x.com]')
   })
 
   it('omits the author bracket when there is no author', () => {
-    expect(provenanceLine({ source: 'notion', author: undefined }, '2026-06-14T10:00:00.000Z')).toBe(
-      '[Source: notion] [2026-06-14]',
-    )
+    expect(
+      provenanceLine({ source: 'notion', author: undefined }, '2026-06-14T10:00:00.000Z'),
+    ).toBe('[Source: notion] [2026-06-14]')
   })
 })

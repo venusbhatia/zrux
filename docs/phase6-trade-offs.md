@@ -8,6 +8,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
 ---
 
 ## Styling: Tailwind v3, not v4
+
 - **Decision:** Add Tailwind CSS v3.4 + PostCSS + Autoprefixer.
 - **Alternative:** Tailwind v4 (new Oxide engine, CSS-first config).
 - **Why:** v4 changes the config/build story (no `tailwind.config.ts`, `@theme`
@@ -15,6 +16,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   risk and every example/snippet matches it. Production swap to v4 is mechanical.
 
 ## Styling: design tokens in tailwind.config + legacy CSS vars kept
+
 - **Decision:** Encode the mockup tokens in `tailwind.config.ts` `theme.extend`,
   but KEEP the four `:root` CSS vars (`--accent` etc.) in `globals.css`.
 - **Alternative:** Delete the CSS vars and migrate everything at once.
@@ -24,6 +26,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   removed (or left as harmless aliases) once nothing references them.
 
 ## Landing scroll-scrub animation: deferred
+
 - **Decision (planned):** Port the landing's CSS-only motion (glow drift, waveform
   pulse, hover, reduced-motion) and the IntersectionObserver `.reveal` fade-in, but
   render the `#assemble` "fragments converge" section in its assembled state with a
@@ -34,6 +37,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   the scrub can be added last only if time remains.
 
 ## Landing CSS: global `.lp`-scoped stylesheet, not a CSS module
+
 - **Decision:** Port the landing CSS into a plain `app/(marketing)/landing.css`
   with every rule scoped under a single `.lp` root class, rather than a CSS
   module with hashed names.
@@ -45,6 +49,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   groups never render together anyway).
 
 ## Landing assembly: static, not scroll-scrubbed (as planned)
+
 - **Decision:** The `#assemble` section renders the five source fragments and the
   assembled brief as static reveal-animated cards.
 - **Alternative:** The prototype's 260vh sticky scroll-scrub that converges the
@@ -53,6 +58,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   and visual payload are preserved without the risk. Documented as a later add.
 
 ## Today badge: sessionStorage handoff, not a count endpoint
+
 - **Decision:** The sidebar Today badge reads `zrux:today-count` from
   sessionStorage, written by the Today page after it loads `/api/today`.
 - **Alternative:** A dedicated `/api/today?countOnly=1` the sidebar calls itself.
@@ -61,6 +67,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   best-effort and updates as soon as the user opens Today.
 
 ## Search: matchPercent is normalized, planning runs per settled query
+
 - **Decision:** `matchPercent` is `round(score / topScore * 100)` clamped to
   `[40, 99]` (hybrid RRF scores are not a 0-100 scale). The planner LLM call runs
   once per debounced (350ms) settled query, not per keystroke, with an
@@ -71,6 +78,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   abort keeps the per-keystroke LLM cost bounded.
 
 ## Relationships: deterministic radial layout, capped at 24 nodes, no d3-force
+
 - **Decision:** Hand-rolled radial layout (focal = highest-degree node centered,
   neighbors on rings), capped at 24 visible nodes by degree with a "+N more"
   count, rendered as SVG. Detail-panel "recent signals" and "last touch" are
@@ -82,6 +90,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   honest to the graph data.
 
 ## Onboarding unlock: connection itemCount, not just OAuth status
+
 - **Decision:** `/api/connections` returns a per-source `itemCount` (cheap
   head-count) and `lastSyncedAt`; onboarding unlocks the app when any source has
   `itemCount > 0`. A "Skip for now" escape is always available.
@@ -91,6 +100,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   the user behind a slow ingest.
 
 ## Ask mic + voice input: visual affordance only
+
 - **Decision:** The Ask composer renders the mic button but it is non-functional
   this phase (tooltip "Voice input coming soon").
 - **Alternative:** Wire Deepgram streaming STT now.
@@ -98,6 +108,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   affordance preserves the mockup without committing the streaming-STT surface.
 
 ## Discovered blocker (NOT Phase 6): `distinct_sources` DB function missing
+
 - **Finding:** During verification, `/api/today` and `/api/answer` return 502 for
   broad intents (daily_briefing / company_summary / cross_source) because the
   retrieval path calls the `distinct_sources(p_user_id)` Postgres function, which
@@ -115,6 +126,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   migration as outside this UI task's authorized scope.
 
 ## Today grounding: model cites by `[n]`, server maps to the real citation
+
 - **Decision:** The Today `generateObject` schema has the model reference CONTEXT
   items by their bracketed `[n]` number; the route maps `n` -> the real citation
   and backfills item_id/source/url.
@@ -124,6 +136,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   guarantee that a card can never cite a source that was not retrieved.
 
 ## Authed-screen verification: via data endpoints, not headless screenshots
+
 - **Decision:** The four app screens were verified by exercising their backing
   endpoints against the real canonical tenant (548 items) plus a build + typecheck;
   only the public landing was screenshotted.
@@ -133,18 +146,19 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   data, which is the substantive proof the screens render.
 
 ## Dev verification: copy gitignored `.env.local` into the worktree
+
 - **Decision:** For local build/dev verification, `.env.local` was copied from the
   main checkout into the worktree (it stays gitignored, never committed).
 - **Why:** Several modules instantiate API clients at import time, so `next build`
   and `next dev` require the env to be present even to collect page data. The fresh
   worktree does not inherit gitignored files. Not a code change; verification only.
 
-
 ---
 
 # Rework (post-review) — supersedes the deferral/blocker entries above
 
 ## Landing scroll-scrub: RESTORED (supersedes "deferred" / "static" entries)
+
 - **Change:** The `#assemble` section is now the faithful 260vh sticky scroll-scrub
   from the mockup. Five source fragments start scattered (per-fragment
   `data-x/data-y/data-r` vw/vh/deg offsets), and converge, scale to 0.72, rotate to
@@ -155,6 +169,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   not sitting right" feedback. This restores the signature effect.
 
 ## Landing: `overflow-x: clip` instead of `hidden` (sticky-breaking bug fixed)
+
 - **Bug:** `.lp { overflow-x: hidden }` turns `.lp` into a scroll container, which
   silently breaks `position: sticky` on the scroll-scrub stage inside it (the sticky
   element measured `top: -380` instead of pinning at 0 — header vanished, fragments
@@ -164,6 +179,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   `top: 0` and fragments converge into the brief mid-scroll.
 
 ## distinct_sources: RESOLVED IN CODE (supersedes the "discovered blocker" entry)
+
 - **Change:** `lib/retrieval/search.ts#userSources()` now wraps the
   `distinct_sources` RPC and falls back to a client-side distinct over
   `context_item` when the function is absent (migration 0005 not applied), logging a
@@ -174,6 +190,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   only removes the hard dependency.
 
 ## Search abort/loading race: FIXED (Greptile P1)
+
 - **Change:** In `app/(app)/search/page.tsx` the `finally` now guards
   `if (!controller.signal.aborted) setLoading(false)`, so a request superseded by a
   newer keystroke no longer flashes the spinner off while the replacement fetch is
@@ -181,6 +198,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   was a shortcut).
 
 ## Other cleanup this pass
+
 - Re-added `:focus-visible` (landing) and `scroll-behavior: smooth`
   (`app/globals.css`, with a reduced-motion override) that the first pass dropped.
 - Waveform now uses the mockup's exact organic delay sequence
@@ -192,6 +210,7 @@ alternative not taken, and why. Companion to `docs/trade-offs.md` (whole-system)
   "Thinking..." so a slow first token reads as active.
 
 ## Still a documented limitation (acceptable)
+
 - **Today badge** remains a sessionStorage handoff from the Today page to the
   sidebar: it avoids a second (LLM-backed) retrieval just to count cards, but it is
   tab-local and only refreshes after the Today screen loads. Fixing cross-tab

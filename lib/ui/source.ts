@@ -29,7 +29,11 @@ const SOURCE_META: Record<string, { label: string; icon: IconName; tint: Tint }>
   voice_memo: { label: 'Voice', icon: 'mic', tint: { bg: '#f0f0f2', color: '#6e6e73' } },
 }
 
-const FALLBACK = { label: 'Source', icon: 'layers' as IconName, tint: { bg: '#f0f0f2', color: '#6e6e73' } }
+const FALLBACK = {
+  label: 'Source',
+  icon: 'layers' as IconName,
+  tint: { bg: '#f0f0f2', color: '#6e6e73' },
+}
 
 export function sourceMeta(source: string) {
   return SOURCE_META[source] ?? FALLBACK

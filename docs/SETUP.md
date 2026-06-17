@@ -8,14 +8,14 @@ source.
 
 These unblock: schema in Postgres, embeddings, and grounded answers.
 
-| Variable | Where to get it |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project -> Settings -> API -> Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase -> Settings -> API -> anon public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase -> Settings -> API -> service_role key (secret) |
-| `DATABASE_URL` | Supabase -> Settings -> Database -> Connection string -> URI (use the Supavisor transaction-mode pooler string) |
-| `OPENAI_API_KEY` | platform.openai.com (embeddings: text-embedding-3-large) |
-| `OPENROUTER_API_KEY` | openrouter.ai (LLM gateway, claude-sonnet-4-6) |
+| Variable                        | Where to get it                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project -> Settings -> API -> Project URL                                                              |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase -> Settings -> API -> anon public key                                                                  |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Supabase -> Settings -> API -> service_role key (secret)                                                        |
+| `DATABASE_URL`                  | Supabase -> Settings -> Database -> Connection string -> URI (use the Supavisor transaction-mode pooler string) |
+| `OPENAI_API_KEY`                | platform.openai.com (embeddings: text-embedding-3-large)                                                        |
+| `OPENROUTER_API_KEY`            | openrouter.ai (LLM gateway, claude-sonnet-4-6)                                                                  |
 
 ### Apply the schema
 
@@ -40,12 +40,12 @@ Sanity check the acceptance gates from docs/spec.md Phase 0:
 
 ## Tier 2 - to ingest real data (Phase 1 connectors)
 
-| Variable | Unblocks |
-|---|---|
-| `COMPOSIO_API_KEY` | managed OAuth + fetch for Gmail / Calendar / Linear / Slack |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | NextAuth Google sign-in (D3) |
-| `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
-| `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_ID` | Trigger.dev ingestion jobs (never in an API route) |
+| Variable                                   | Unblocks                                                    |
+| ------------------------------------------ | ----------------------------------------------------------- |
+| `COMPOSIO_API_KEY`                         | managed OAuth + fetch for Gmail / Calendar / Linear / Slack |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | NextAuth Google sign-in (D3)                                |
+| `NEXTAUTH_SECRET`                          | `openssl rand -base64 32`                                   |
+| `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_ID` | Trigger.dev ingestion jobs (never in an API route)          |
 
 ## Tier 3 - quality + resilience (Phase 5)
 

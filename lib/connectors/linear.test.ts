@@ -60,7 +60,10 @@ describe('linearConnector', () => {
   it('follows relay cursor pagination via endCursor / hasNextPage', async () => {
     executeTool
       .mockResolvedValueOnce({
-        issues: { nodes: [{ id: 'a', title: 'A' }], pageInfo: { hasNextPage: true, endCursor: 'c1' } },
+        issues: {
+          nodes: [{ id: 'a', title: 'A' }],
+          pageInfo: { hasNextPage: true, endCursor: 'c1' },
+        },
       })
       .mockResolvedValueOnce({
         issues: { nodes: [{ id: 'b', title: 'B' }], pageInfo: { hasNextPage: false } },

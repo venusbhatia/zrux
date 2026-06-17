@@ -38,6 +38,15 @@ export function parseName(value: string | null | undefined): string | null {
   return (email ?? value.trim()) || null
 }
 
+// Best-effort human name from an email local-part ("sarah.chen@x" -> "Sarah
+// Chen"). Used as a display fallback when no header/entity name is available.
+export function humanizeEmail(email: string): string {
+  const local = email.split('@')[0] ?? email
+  const words = local.split(/[._-]+/).filter(Boolean)
+  if (words.length === 0 || /^\d+$/.test(local)) return email
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
 // Split a recipient header ("a@x.com, Name <b@y.com>") into addresses.
 export function parseEmails(value: string | null | undefined): string[] {
   if (!value) return []

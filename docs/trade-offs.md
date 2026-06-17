@@ -3,7 +3,7 @@
 Running log of trade-offs taken while implementing `docs/spec.md`. Each entry: what
 was decided, why, and what it costs. This complements (does not replace) the
 "Tradeoffs and decisions" section of `docs/Architecture.md`, which covers the
-*design-time* choices. This file records *build-time* choices, especially where
+_design-time_ choices. This file records _build-time_ choices, especially where
 the spec or the two design docs left something open or in conflict.
 
 ---
@@ -35,7 +35,7 @@ names than the migration. Mitigated by this note and a comment in
 
 **Conflict.** `docs/Architecture.md` §6.2's `entity` SQL has only `name` + `aliases`
 (unique on `user_id, type, name`) with no `email`/`domain`. But the
-entity-resolution rules in *both* docs (docs/Architecture.md §6.3, CLAUDE.md
+entity-resolution rules in _both_ docs (docs/Architecture.md §6.3, CLAUDE.md
 "Entity resolution rules") say email is the canonical key and companies resolve
 on name + domain. CLAUDE.md's schema block does include `email`/`domain`.
 

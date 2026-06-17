@@ -91,7 +91,9 @@ async function main() {
   if ((count ?? 0) < 2) throw new Error('expected long email to chunk into >= 2 pieces')
 
   const sync = await getSyncState(USER, 'gmail')
-  console.log(`  sync_state(gmail).last_successful_sync_at set: ${sync?.lastSuccessfulSyncAt !== null}`)
+  console.log(
+    `  sync_state(gmail).last_successful_sync_at set: ${sync?.lastSuccessfulSyncAt !== null}`,
+  )
   if (!sync?.lastSuccessfulSyncAt) throw new Error('sync_state not written')
 
   // Read it back through the answer path.

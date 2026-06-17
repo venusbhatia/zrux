@@ -2,11 +2,11 @@
 
 **A grounded context engine that helps a startup founder understand what is happening across their work life.**
 
-| | |
-|---|---|
-| **Document** | Architecture & System Design |
-| **Status** | Decided — implementation spec |
-| **Scope** | The system we are building, end to end |
+|              |                                                               |
+| ------------ | ------------------------------------------------------------- |
+| **Document** | Architecture & System Design                                  |
+| **Status**   | Decided — implementation spec                                 |
+| **Scope**    | The system we are building, end to end                        |
 | **Audience** | Engineering (build reference) + reviewer (design walkthrough) |
 
 ---
@@ -36,7 +36,7 @@
 
 The assistant is a **personal chief-of-staff for a startup founder**. A founder's reality is fragmented across a dozen tools — email, calendar, issue tracker, team chat, docs, code, error monitoring, and the meetings and calls where half the real decisions happen. No single surface answers "what should I actually pay attention to right now?" The assistant unifies that scattered context and answers it.
 
-It is explicitly **not a chatbot that calls APIs live at query time.** The core of the system is a **context engine**: it ingests information from each source on an ongoing basis, normalizes it into a shared shape, stores it centrally, and retrieves the relevant slice *before* answering. Answers are **grounded in stored context**, with live tool calls available only as a fallback for genuinely fresh, long-tail lookups.
+It is explicitly **not a chatbot that calls APIs live at query time.** The core of the system is a **context engine**: it ingests information from each source on an ongoing basis, normalizes it into a shared shape, stores it centrally, and retrieves the relevant slice _before_ answering. Answers are **grounded in stored context**, with live tool calls available only as a fallback for genuinely fresh, long-tail lookups.
 
 It answers questions a founder actually asks:
 
@@ -57,15 +57,15 @@ A founder's world is structured (people, companies, projects, relationships) and
 
 Every decision in this document traces back to four principles.
 
-**P1 — Own the context engine; rent only infrastructure.** The ingest → normalize → store → retrieve pipeline is the thing being built and judged, so it lives in our own readable code. Managed services are used for *infrastructure* (hosting, auth, OAuth plumbing, connection pooling) and for *jobs we explicitly choose not to hand-build* (cross-session personalization) — never to absorb the core retrieval reasoning.
+**P1 — Own the context engine; rent only infrastructure.** The ingest → normalize → store → retrieve pipeline is the thing being built and judged, so it lives in our own readable code. Managed services are used for _infrastructure_ (hosting, auth, OAuth plumbing, connection pooling) and for _jobs we explicitly choose not to hand-build_ (cross-session personalization) — never to absorb the core retrieval reasoning.
 
 **P2 — Grounded over live.** The assistant answers from stored, retrieved context with citations. Live API calls are a secondary escape hatch, not the primary path. This is both a correctness stance (no hallucinated state) and the product's whole point.
 
-**P3 — Retrieval is filtering + ranking, not just similarity.** Founder questions are drenched in time and structure. The pipeline leads with metadata filters (source, time, type, status, entity) and ranks semantically *within* the filtered set.
+**P3 — Retrieval is filtering + ranking, not just similarity.** Founder questions are drenched in time and structure. The pipeline leads with metadata filters (source, time, type, status, entity) and ranks semantically _within_ the filtered set.
 
 **P4 — Production-grade means designing for the failure modes a demo hides.** Where ingestion runs, how the LLM ingress fails over, how untrusted content is defended against, and how the system is observed and evaluated are all first-class concerns, not afterthoughts.
 
-**P5 — Read the prior art; build it ourselves.** Mature open-source context engines — **SurfSense** (FastAPI + pgvector + hybrid search + RRF + reranking + two-tier index) and **Onyx/Danswer** (the best connector + incremental-sync design, the Load/Poll/Slim/Event taxonomy) — are studied as *reference implementations*, not forked as dependencies. Forking would mean the reviewer evaluates someone else's engine, would collide with our TypeScript stack, and (in SurfSense's case) inherits a self-described "not yet production-ready" codebase. The connector contract (§7.1), entity resolution (§6.3), recency weighting (§6.4), two-tier index, and episodic raw-payload layer in this doc are patterns borrowed from that prior art and re-implemented in our own stack.
+**P5 — Read the prior art; build it ourselves.** Mature open-source context engines — **SurfSense** (FastAPI + pgvector + hybrid search + RRF + reranking + two-tier index) and **Onyx/Danswer** (the best connector + incremental-sync design, the Load/Poll/Slim/Event taxonomy) — are studied as _reference implementations_, not forked as dependencies. Forking would mean the reviewer evaluates someone else's engine, would collide with our TypeScript stack, and (in SurfSense's case) inherits a self-described "not yet production-ready" codebase. The connector contract (§7.1), entity resolution (§6.3), recency weighting (§6.4), two-tier index, and episodic raw-payload layer in this doc are patterns borrowed from that prior art and re-implemented in our own stack.
 
 ---
 
@@ -109,32 +109,32 @@ flowchart TB
     API -.->|trace every call| LF[Langfuse]
 ```
 
-**Reading the diagram:** sources are reached through one managed integration layer (Composio); a durable job platform runs the multi-step ingestion and writes results into Supabase (the context engine *and* the relationship graph) plus Supermemory (personalization). The serving plane — fed by a web UI and a Telegram bot through one shared API — retrieves across all three layers, generates through a model gateway, and traces everything.
+**Reading the diagram:** sources are reached through one managed integration layer (Composio); a durable job platform runs the multi-step ingestion and writes results into Supabase (the context engine _and_ the relationship graph) plus Supermemory (personalization). The serving plane — fed by a web UI and a Telegram bot through one shared API — retrieves across all three layers, generates through a model gateway, and traces everything.
 
 ---
 
 ## 4. Technology Stack
 
-| Layer | Choice | Role | Why |
-|---|---|---|---|
-| **App framework** | Next.js (App Router) + TypeScript | Full-stack app: UI, API routes, types | One language, one repo, one deploy; lowest-friction for a reviewer to run; first-class integration SDKs |
-| **LLM orchestration** | Vercel AI SDK | Unified, provider-agnostic LLM calls, streaming, tool calling, structured output (Zod) | Provider-swap is trivial → no LLM lock-in; structured outputs power query understanding and triple extraction |
-| **LLM gateway** | OpenRouter + fallback chain + circuit breaker | Single endpoint to many models | Provided by the assignment; competitive latency; hardened with retry/backoff, a fallback model, and a circuit breaker because it is the unhardened single point of failure on the read path (§11) |
-| **Integrations** | Composio | Managed OAuth + data fetch across all sources | Removes essentially all OAuth boilerplate; one SDK covers every source. **Documented production swap: Nango** (true data-sync engine) if fidelity becomes the priority |
-| **Storage / context engine** | Supabase (Postgres + pgvector 0.8.x) | Home of Layers 1 & 2: relational + vector + keyword + tenancy + auth | One store for relational, vector, and full-text; time-range + semantic in a single SQL statement; RLS for tenancy; Google OAuth handled |
-| **Cache / ephemeral state** | Redis (Upstash, serverless) | Semantic response cache, founder-profile cache, rate-limit + circuit-breaker state | **Free tier covers a take-home outright.** The relief valve for the LLM gateway (§11): repeated/briefing-style queries hit cache instead of re-paying synthesis |
-| **Vector index** | pgvector HNSW on `vector(1536)` + iterative scans | Dense retrieval | HNSW absorbs writes without rebuilds; 1536 dims sits under pgvector's 2,000-dim HNSW cap with no `halfvec` ceremony; iterative scans make filtered ANN return full result sets |
-| **Keyword search** | Postgres `tsvector` + RRF | Lexical half of hybrid search | In-database, RLS-compatible, zero extra infra. **Production upgrade path: pg_search / pg_textsearch** for true BM25 if ranking quality demands it |
-| **Reranker** | Cohere Rerank 3.5 | Cross-encoder second stage | Top-tier ranking quality with the broadest production track record; the rerank stage runs post-retrieval over ~50–100 candidates, so its latency is invisible against synthesis + network; toggleable so its impact can be A/B'd on real data |
-| **Embeddings** | OpenAI `text-embedding-3-large`, 1536 dims via Matryoshka | Vectorization | Safest default at scale, first-class in the Vercel AI SDK; truncating to 1536 stays under the HNSW cap with negligible quality loss and smaller, faster vectors |
-| **Speech-to-text** | Deepgram (Nova-3 batch + streaming) | Transcribe raw audio for ingestion; transcribe spoken questions on input | The audio primitive for sources with no transcript (voice memos, raw recordings) and for voice input. Diarization + word-level timestamps feed entity resolution (§6.3). ~$0.0043/min batch + free credit → effectively free at take-home scale |
-| **Contextual enrichment** | Claude Haiku-class via OpenRouter + prompt caching | Per-item situating context at ingestion | Cheap with caching (~$1 / M doc tokens); the productionized version of "embed a richer representation" |
-| **Ingestion orchestration** | Trigger.dev v3 | Durable, long-running, step-based ingestion jobs | Serverless routes time out at 10–60s; ingestion runs minutes–hours. Dedicated compute, no timeouts, per-step observability built for multi-step RAG pipelines, retries |
-| **Personalization** | Supermemory | Layer 3: cross-session profiles & recurring priorities | A job we explicitly choose not to hand-build; sits *on top of* retrieval, never replaces it |
-| **Delivery** | Next.js web chat (primary) + Telegram bot | Interfaces over one shared answer API | Web chat is the clean deliverable; Telegram is a ~30-line messaging surface that also carries the proactive morning briefing |
-| **Observability** | Langfuse + golden-set eval harness | Trace every LLM/retrieval call; measure retrieval quality | Turns "it works" into "I can prove it works and catch regressions"; directly serves the anti-hallucination bar |
-| **Package manager** | pnpm | Dependency management | Content-addressed store, strict `node_modules` (catches phantom deps), fast; lockfile committed for reproducible installs |
-| **Dev workshop** *(not shipped)* | GStack + GBrain | AI-assisted build workflow + agent dev-memory | Accelerates the build and keeps the Traces log reflecting *our* reasoning. Lives on the machine / global config, **never in the product repo** |
+| Layer                            | Choice                                                    | Role                                                                                   | Why                                                                                                                                                                                                                                             |
+| -------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **App framework**                | Next.js (App Router) + TypeScript                         | Full-stack app: UI, API routes, types                                                  | One language, one repo, one deploy; lowest-friction for a reviewer to run; first-class integration SDKs                                                                                                                                         |
+| **LLM orchestration**            | Vercel AI SDK                                             | Unified, provider-agnostic LLM calls, streaming, tool calling, structured output (Zod) | Provider-swap is trivial → no LLM lock-in; structured outputs power query understanding and triple extraction                                                                                                                                   |
+| **LLM gateway**                  | OpenRouter + fallback chain + circuit breaker             | Single endpoint to many models                                                         | Provided by the assignment; competitive latency; hardened with retry/backoff, a fallback model, and a circuit breaker because it is the unhardened single point of failure on the read path (§11)                                               |
+| **Integrations**                 | Composio                                                  | Managed OAuth + data fetch across all sources                                          | Removes essentially all OAuth boilerplate; one SDK covers every source. **Documented production swap: Nango** (true data-sync engine) if fidelity becomes the priority                                                                          |
+| **Storage / context engine**     | Supabase (Postgres + pgvector 0.8.x)                      | Home of Layers 1 & 2: relational + vector + keyword + tenancy + auth                   | One store for relational, vector, and full-text; time-range + semantic in a single SQL statement; RLS for tenancy; Google OAuth handled                                                                                                         |
+| **Cache / ephemeral state**      | Redis (Upstash, serverless)                               | Semantic response cache, founder-profile cache, rate-limit + circuit-breaker state     | **Free tier covers a take-home outright.** The relief valve for the LLM gateway (§11): repeated/briefing-style queries hit cache instead of re-paying synthesis                                                                                 |
+| **Vector index**                 | pgvector HNSW on `vector(1536)` + iterative scans         | Dense retrieval                                                                        | HNSW absorbs writes without rebuilds; 1536 dims sits under pgvector's 2,000-dim HNSW cap with no `halfvec` ceremony; iterative scans make filtered ANN return full result sets                                                                  |
+| **Keyword search**               | Postgres `tsvector` + RRF                                 | Lexical half of hybrid search                                                          | In-database, RLS-compatible, zero extra infra. **Production upgrade path: pg_search / pg_textsearch** for true BM25 if ranking quality demands it                                                                                               |
+| **Reranker**                     | Cohere Rerank 3.5                                         | Cross-encoder second stage                                                             | Top-tier ranking quality with the broadest production track record; the rerank stage runs post-retrieval over ~50–100 candidates, so its latency is invisible against synthesis + network; toggleable so its impact can be A/B'd on real data   |
+| **Embeddings**                   | OpenAI `text-embedding-3-large`, 1536 dims via Matryoshka | Vectorization                                                                          | Safest default at scale, first-class in the Vercel AI SDK; truncating to 1536 stays under the HNSW cap with negligible quality loss and smaller, faster vectors                                                                                 |
+| **Speech-to-text**               | Deepgram (Nova-3 batch + streaming)                       | Transcribe raw audio for ingestion; transcribe spoken questions on input               | The audio primitive for sources with no transcript (voice memos, raw recordings) and for voice input. Diarization + word-level timestamps feed entity resolution (§6.3). ~$0.0043/min batch + free credit → effectively free at take-home scale |
+| **Contextual enrichment**        | Claude Haiku-class via OpenRouter + prompt caching        | Per-item situating context at ingestion                                                | Cheap with caching (~$1 / M doc tokens); the productionized version of "embed a richer representation"                                                                                                                                          |
+| **Ingestion orchestration**      | Trigger.dev v3                                            | Durable, long-running, step-based ingestion jobs                                       | Serverless routes time out at 10–60s; ingestion runs minutes–hours. Dedicated compute, no timeouts, per-step observability built for multi-step RAG pipelines, retries                                                                          |
+| **Personalization**              | Supermemory                                               | Layer 3: cross-session profiles & recurring priorities                                 | A job we explicitly choose not to hand-build; sits _on top of_ retrieval, never replaces it                                                                                                                                                     |
+| **Delivery**                     | Next.js web chat (primary) + Telegram bot                 | Interfaces over one shared answer API                                                  | Web chat is the clean deliverable; Telegram is a ~30-line messaging surface that also carries the proactive morning briefing                                                                                                                    |
+| **Observability**                | Langfuse + golden-set eval harness                        | Trace every LLM/retrieval call; measure retrieval quality                              | Turns "it works" into "I can prove it works and catch regressions"; directly serves the anti-hallucination bar                                                                                                                                  |
+| **Package manager**              | pnpm                                                      | Dependency management                                                                  | Content-addressed store, strict `node_modules` (catches phantom deps), fast; lockfile committed for reproducible installs                                                                                                                       |
+| **Dev workshop** _(not shipped)_ | GStack + GBrain                                           | AI-assisted build workflow + agent dev-memory                                          | Accelerates the build and keeps the Traces log reflecting _our_ reasoning. Lives on the machine / global config, **never in the product repo**                                                                                                  |
 
 ---
 
@@ -142,13 +142,16 @@ flowchart TB
 
 The assistant has **three distinct memory layers with non-overlapping jobs.** This separation is what lets the system be rich without the personalization or graph layers absorbing the graded retrieval pipeline.
 
-### Layer 1 — Context Engine *(Supabase + pgvector)*
+### Layer 1 — Context Engine _(Supabase + pgvector)_
+
 The cross-source RAG over normalized items. Answers **point-in-time** questions: "what's blocking the launch", "investor activity this week", "what's broken in production". This is the spine; everything else enriches it. **It is built by hand and fully inspectable.**
 
-### Layer 2 — Relationship Graph *(Supabase `entity` / `edge`)*
+### Layer 2 — Relationship Graph _(Supabase `entity` / `edge`)_
+
 A typed graph of the founder's **entities and relationships**, derived from the same ingested items. Nodes are people, companies, projects; edges are typed (`invested_in`, `introduced_by`, `met_with`, `advises`, `works_at`, `blocks`). Answers **relational** questions Layer 1 cannot — "who connects me to ACME?", "who introduced me to this investor?" — and resolves references ("ACME" → "the investor Sarah introduced you to in March"). It is GraphRAG over the founder's world, implemented as two tables in our own Postgres (not an external dependency), populated by an extraction step during ingestion.
 
-### Layer 3 — Personalization *(Supermemory)*
+### Layer 3 — Personalization _(Supermemory)_
+
 Durable, **cross-session** memory: what the founder habitually cares about, recurring priorities, preferences ("you triage investor threads first; you ignore recruiter spam"). This is the longitudinal user-profile layer that survives between conversations. It is a managed service because it is a job we deliberately choose not to hand-build — and it shapes answers (ordering, emphasis) without ever being the retrieval.
 
 **Why they compose cleanly:** point-in-time context, entity relationships, and durable preferences are three different questions. Layer 1 stays the spine; Layers 2 and 3 are enrichment around it. The retrieval pipeline (§8) consults all three and assembles them into one grounded, personalized answer.
@@ -212,9 +215,9 @@ create index on context_chunk (user_id, source, source_updated_at desc);        
 create index on context_item using hnsw (summary_embedding vector_cosine_ops);
 ```
 
-> **Partitioning (designed in, free).** `context_chunk` is hash-partitioned by `user_id` from the first migration. At one or two users this costs nothing — it's a table-creation choice, not extra infrastructure — but every tenant-scoped query (which is *all* of them) prunes to a single partition, so the table never becomes a shared hot spot as tenants grow. The partition key must sit in the primary key, hence `primary key (user_id, id)`. `context_item` stays unpartitioned (far smaller — one row per item). This is the clean foundation that a future cross-instance split would build on, without re-architecting.
+> **Partitioning (designed in, free).** `context_chunk` is hash-partitioned by `user_id` from the first migration. At one or two users this costs nothing — it's a table-creation choice, not extra infrastructure — but every tenant-scoped query (which is _all_ of them) prunes to a single partition, so the table never becomes a shared hot spot as tenants grow. The partition key must sit in the primary key, hence `primary key (user_id, id)`. `context_item` stays unpartitioned (far smaller — one row per item). This is the clean foundation that a future cross-instance split would build on, without re-architecting.
 
-> **Two-tier index.** `context_item.summary` + `summary_embedding` give a *document-grain* representation alongside the *chunk-grain* `context_chunk` embeddings. Fine-grained chunk retrieval answers "what did Sarah say about the deploy"; the doc-level summary answers "summarize the Q2 planning doc" where the chunk grain is too fine. Retrieval can query either tier depending on `intent`.
+> **Two-tier index.** `context_item.summary` + `summary_embedding` give a _document-grain_ representation alongside the _chunk-grain_ `context_chunk` embeddings. Fine-grained chunk retrieval answers "what did Sarah say about the deploy"; the doc-level summary answers "summarize the Q2 planning doc" where the chunk grain is too fine. Retrieval can query either tier depending on `intent`.
 >
 > **Episodic layer.** `context_item.raw` keeps the untouched fetched payload as ground truth. When chunking or enrichment logic changes, re-process from `raw` instead of re-hitting (and re-rate-limiting) the source APIs. `is_deleted` is flipped by the Slim sync mode (§7) when a source item disappears, so deletions propagate without a destructive delete.
 >
@@ -290,7 +293,7 @@ The principle: **prefer a missed merge over a wrong merge.** A fragmented graph 
 
 ### 6.4 The hybrid retrieval function
 
-Two CTEs (vector + keyword), each pre-filtered by tenant / source / time, fused by Reciprocal Rank Fusion, then nudged by a **recency weight** — a soft time-decay applied *after* fusion so genuinely-recent items outrank merely-relevant-but-stale ones on "what's happening" questions. This is distinct from the hard `p_after` filter: the filter bounds the candidate set, the weight orders within it.
+Two CTEs (vector + keyword), each pre-filtered by tenant / source / time, fused by Reciprocal Rank Fusion, then nudged by a **recency weight** — a soft time-decay applied _after_ fusion so genuinely-recent items outrank merely-relevant-but-stale ones on "what's happening" questions. This is distinct from the hard `p_after` filter: the filter bounds the candidate set, the weight orders within it.
 
 **On the index, stated plainly:** at per-tenant scale this function does **exact KNN over the filtered set, not an HNSW index scan** — and that is the right behavior, chosen deliberately. Because `filtered` is referenced by both `vec` and `kw`, Postgres materializes it (a CTE referenced more than once is not inlined), so the distance sort runs over one founder's already-narrow row set. Exact KNN there is both accurate and fast, and avoids HNSW's approximation entirely. The HNSW index (and `ef_search` / `iterative_scan` tuning) becomes live only at the **larger scale tier** — very large per-tenant partitions or cross-partition queries — where an approximate index scan is worth it. The prose and the SQL now agree: small scale = exact KNN over the filter; large scale = HNSW with iterative scan.
 
@@ -354,37 +357,38 @@ Ingestion runs as **discrete, idempotent, retriable steps on Trigger.dev** — n
 
 Every source implements one `Connector` interface with four sync modes (the taxonomy proven by Onyx). This is the contract that makes ingestion robust rather than ad hoc:
 
-| Mode | Purpose | When it runs |
-|---|---|---|
-| **Load** | Full bulk index of everything | First connection; periodic full reconcile |
-| **Poll** | Incremental — fetch only items changed since the last run, by time window | The default ongoing sync (scheduled) |
-| **Slim** | Fetch only IDs to detect deletions, then flip `is_deleted` on items no longer present | Periodically, to keep the index honest |
-| **Event** | Real-time push | Where the source supports webhooks and latency matters (e.g. Slack) |
+| Mode      | Purpose                                                                               | When it runs                                                        |
+| --------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| **Load**  | Full bulk index of everything                                                         | First connection; periodic full reconcile                           |
+| **Poll**  | Incremental — fetch only items changed since the last run, by time window             | The default ongoing sync (scheduled)                                |
+| **Slim**  | Fetch only IDs to detect deletions, then flip `is_deleted` on items no longer present | Periodically, to keep the index honest                              |
+| **Event** | Real-time push                                                                        | Where the source supports webhooks and latency matters (e.g. Slack) |
 
 ```ts
 interface Connector {
-  source: SourceName;
-  load(ctx: SyncContext): AsyncIterable<RawItem>;                 // full bulk
-  poll(ctx: SyncContext, since: Date): AsyncIterable<RawItem>;    // incremental by time
-  slim(ctx: SyncContext): AsyncIterable<ExternalId>;              // ids only, for deletion detection
-  handleEvent?(payload: unknown): AsyncIterable<RawItem>;         // optional webhook
+  source: SourceName
+  load(ctx: SyncContext): AsyncIterable<RawItem> // full bulk
+  poll(ctx: SyncContext, since: Date): AsyncIterable<RawItem> // incremental by time
+  slim(ctx: SyncContext): AsyncIterable<ExternalId> // ids only, for deletion detection
+  handleEvent?(payload: unknown): AsyncIterable<RawItem> // optional webhook
 }
 ```
 
 **Incremental sync** is driven by a per-connector cursor — store `last_successful_sync_at` for each `(user_id, source)` pair and pass it as the `since` bound to `poll`. **Poll on a schedule is the default**; webhooks (`Event`) are layered on only where the source supports them and freshness matters. Every mode emits `RawItem`s that flow through the same normalize → enrich → embed → upsert path below, so live and fixture-backed connectors are indistinguishable downstream.
 
-> **Where Composio fits:** Composio supplies managed OAuth and the underlying fetch calls *inside* `load`/`poll`/`slim`; the connector contract and sync-state are ours. (This is also exactly the seam where Composio could later be swapped for Nango's data-sync engine without touching anything downstream.)
+> **Where Composio fits:** Composio supplies managed OAuth and the underlying fetch calls _inside_ `load`/`poll`/`slim`; the connector contract and sync-state are ours. (This is also exactly the seam where Composio could later be swapped for Nango's data-sync engine without touching anything downstream.)
 
 ### 7.2 Meetings & audio (Deepgram)
 
 A founder's highest-signal context lives in conversations — investor calls, customer calls, standups, voice memos. Audio enters through the **same `Connector` contract**; the only addition is a **transcription transform that runs before normalize**, and it only fires when the incoming `RawItem` is audio without a transcript.
 
-**Raw audio → Deepgram.** Voice memos, raw call/meeting recordings, and anything else that arrives as audio with no transcript go through **Deepgram Nova-3 batch transcription** with `diarize=true` and word-level timestamps. The transcript becomes the item body; diarized speaker turns become the chunk boundaries; the structured speaker/timestamp output feeds entity resolution (see the wiring below). They normalize to a single `type: 'meeting'` (or `'voice_memo'`) item with the same downstream as every other source. (If audio ever arrives *already* transcribed via an existing connector — e.g. a transcript file synced from Drive — it is ingested as-is and skips re-transcription; no need to pay for what's already done.)
+**Raw audio → Deepgram.** Voice memos, raw call/meeting recordings, and anything else that arrives as audio with no transcript go through **Deepgram Nova-3 batch transcription** with `diarize=true` and word-level timestamps. The transcript becomes the item body; diarized speaker turns become the chunk boundaries; the structured speaker/timestamp output feeds entity resolution (see the wiring below). They normalize to a single `type: 'meeting'` (or `'voice_memo'`) item with the same downstream as every other source. (If audio ever arrives _already_ transcribed via an existing connector — e.g. a transcript file synced from Drive — it is ingested as-is and skips re-transcription; no need to pay for what's already done.)
 
-**Diarization → graph wiring (the detailed part).** Deepgram produces *diarized* transcripts — speaker-attributed turns with timestamps — and that structure maps directly onto Layer 2:
+**Diarization → graph wiring (the detailed part).** Deepgram produces _diarized_ transcripts — speaker-attributed turns with timestamps — and that structure maps directly onto Layer 2:
+
 1. **Speakers → person entities.** Each diarized speaker label (`Speaker 0`, `Speaker 1`, …) is resolved to a person entity. Resolution (§6.3) canonicalizes on the meeting's **participant list** (from the calendar event the recording is linked to, which usually carries attendee emails — the stable key) rather than the raw `Speaker N` label. A speaker that can't be confidently matched becomes a new provisional entity, never a wrong merge.
 2. **Turns → provenance-bearing chunks.** Each speaker turn is a chunk whose provenance line names the resolved speaker, the meeting, and the timestamp (e.g. `Sarah Chen in "Series A sync" · 14:03 · 2026-06-10`), so retrieval can answer "what did Sarah commit to on the investor call?" and cite the exact turn.
-3. **Utterances → typed edges.** Triple extraction (§9.3) runs over the transcript (meetings are a high-signal source, so they are *not* gated out): "Sarah said we're pushing the launch to Q3" yields edges like `(Sarah)-[decided]->(Q3 launch)` and `(Sarah)-[works_with]->(attendees)`, each carrying `source_item` provenance and a confidence score. The meeting becomes graph structure, not just a searchable blob.
+3. **Utterances → typed edges.** Triple extraction (§9.3) runs over the transcript (meetings are a high-signal source, so they are _not_ gated out): "Sarah said we're pushing the launch to Q3" yields edges like `(Sarah)-[decided]->(Q3 launch)` and `(Sarah)-[works_with]->(attendees)`, each carrying `source_item` provenance and a confidence score. The meeting becomes graph structure, not just a searchable blob.
 
 This is why audio "fits perfectly": it is a new modality that reuses the entire pipeline, and its native diarization is exactly the signal the relationship graph wants.
 
@@ -416,7 +420,7 @@ flowchart LR
 
 1. **Trigger.** A scheduled `poll` (the default), a `load` on first connection, or a Composio webhook (`Event`) where supported. The `poll` window is computed from the connector's stored `last_successful_sync_at`.
 2. **Fetch.** Pull the raw item(s) via the connector (Composio read action underneath). Persist the untouched payload to `context_item.raw` (the episodic ground-truth layer). Defensive check: assert returned counts against the source's reported totals to catch silent under-collection.
-2a. **Transcribe (audio only).** If the item is audio with no transcript, run Deepgram Nova-3 batch with diarization; the diarized transcript becomes the body. Items that already carry a transcript skip this entirely.
+   2a. **Transcribe (audio only).** If the item is audio with no transcript, run Deepgram Nova-3 batch with diarization; the diarized transcript becomes the body. Items that already carry a transcript skip this entirely.
 3. **Normalize.** Map the source payload into a `context_item` (uniform `source`/`type`/`source_created_at`/`source_updated_at`/`status`/`metadata`). Meetings carry their participant list in `metadata` for speaker resolution.
 4. **Chunk if long.** Most items are atomic (an issue, an error, a message, a short email) and embed whole. Only long docs (Notion pages, Google Docs, long threads) are split. For long docs, also generate a doc-level `summary` and embed it (the two-tier index).
 5. **Contextual enrich.** Build a deterministic provenance line from metadata, and — only for unstructured/long bodies — generate a one-sentence LLM gloss (see §9.1). The embedded `content` = `provenance + gloss + body`.
@@ -455,10 +459,10 @@ flowchart TB
 
 **Stage-by-stage:**
 
-0. **Semantic cache check.** The question arrives as text — typed, or a spoken question transcribed by Deepgram streaming STT (§13). Embed the normalized question; on a near-hit for the *same tenant* within TTL, return the cached answer and skip the whole pipeline. This is the single biggest relief for the LLM gateway — repeated and briefing-style queries cost nothing the second time (§11).
+0. **Semantic cache check.** The question arrives as text — typed, or a spoken question transcribed by Deepgram streaming STT (§13). Embed the normalized question; on a near-hit for the _same tenant_ within TTL, return the cached answer and skip the whole pipeline. This is the single biggest relief for the LLM gateway — repeated and briefing-style queries cost nothing the second time (§11).
 
 1. **Query understanding.** One structured LLM call turns the question into a retrieval plan: `semantic_query`, `keyword_terms`, `sources`, `after`/`before`, `type`, `status`, `entities`, `intent` (see §9.2). Generous with time filters, conservative with source/type/status. It also sets the **time basis** (`updated` vs `created`) and **recency weight** from intent.
-2. **Hybrid retrieval.** Run dense (pgvector) and keyword (`tsvector`) search in parallel, *with the plan's metadata filters applied*, fused by RRF in the `hybrid_search` function, then nudged by a **recency weight** scaled from `intent` (high for "what's happening", off for specific lookups). At per-tenant scale this is exact KNN over the filtered set (§6.4). For `summary`-style questions, retrieval can target the **doc-summary tier** (§6.1) instead of chunks.
+2. **Hybrid retrieval.** Run dense (pgvector) and keyword (`tsvector`) search in parallel, _with the plan's metadata filters applied_, fused by RRF in the `hybrid_search` function, then nudged by a **recency weight** scaled from `intent` (high for "what's happening", off for specific lookups). At per-tenant scale this is exact KNN over the filtered set (§6.4). For `summary`-style questions, retrieval can target the **doc-summary tier** (§6.1) instead of chunks.
 3. **Graph expansion (Layer 2).** Resolve named entities from the question against the resolved `entity` table (§6.3); pull connected entities and the items that mention them, expanding recall on relational questions.
 4. **Rerank.** Cross-encoder over the fused candidates (~50–100) down to a working set. Toggleable so its real-data impact can be measured.
 5. **Chunk→item rollup.** Dedupe and roll chunks up to their parent `item_id`, keeping each item's best-scoring chunk, before truncating to the final top-k. Without this, three chunks of the same Notion doc can rerank together and crowd out other sources; rolling up keeps the context block **diverse** across items and sources.
@@ -515,29 +519,60 @@ One `generateObject` call → a structured `RetrievalPlan`. The schema descripti
 
 ```ts
 const RetrievalPlan = z.object({
-  semantic_query: z.string().describe(
-    "Cleaned, self-contained version of the question for embedding search. Resolve " +
-    "pronouns ('it','that'). Keep it truthful — do NOT fabricate a hypothetical answer."),
-  keyword_terms: z.array(z.string()).describe(
-    "Exact literal strings worth matching: people, product/project names, error text, " +
-    "ticket IDs, companies. Empty if none stand out."),
-  sources: z.array(z.enum([
-    "gmail","google_calendar","linear","slack","notion","google_drive","github","sentry","crm"
-  ])).nullable().describe(
-    "Restrict ONLY if the question clearly implies these sources. Null = search everything. " +
-    "Prefer null when unsure — excluding a source loses real answers."),
-  after: z.string().nullable().describe(
-    "ISO date lower bound, resolved from relative expressions using today. Null if no cue."),
-  before: z.string().nullable().describe(
-    "ISO date upper bound. Usually null unless the question names a closed past window."),
-  type: z.enum(["email","event","issue","message","error","doc","pr","contact"])
-    .nullable().describe("Restrict to one type ONLY if explicit ('which tasks' -> issue)."),
-  status: z.string().nullable().describe(
-    "e.g. 'blocked','unresolved'. Only if the question names a state. Null otherwise."),
-  entities: z.array(z.string()).describe("People/companies/projects named or implied."),
-  intent: z.enum(["daily_briefing","lookup","followups","summary","status_check"])
-    .describe("What the founder wants, for downstream handling."),
-});
+  semantic_query: z
+    .string()
+    .describe(
+      'Cleaned, self-contained version of the question for embedding search. Resolve ' +
+        "pronouns ('it','that'). Keep it truthful — do NOT fabricate a hypothetical answer.",
+    ),
+  keyword_terms: z
+    .array(z.string())
+    .describe(
+      'Exact literal strings worth matching: people, product/project names, error text, ' +
+        'ticket IDs, companies. Empty if none stand out.',
+    ),
+  sources: z
+    .array(
+      z.enum([
+        'gmail',
+        'google_calendar',
+        'linear',
+        'slack',
+        'notion',
+        'google_drive',
+        'github',
+        'sentry',
+        'crm',
+      ]),
+    )
+    .nullable()
+    .describe(
+      'Restrict ONLY if the question clearly implies these sources. Null = search everything. ' +
+        'Prefer null when unsure — excluding a source loses real answers.',
+    ),
+  after: z
+    .string()
+    .nullable()
+    .describe(
+      'ISO date lower bound, resolved from relative expressions using today. Null if no cue.',
+    ),
+  before: z
+    .string()
+    .nullable()
+    .describe('ISO date upper bound. Usually null unless the question names a closed past window.'),
+  type: z
+    .enum(['email', 'event', 'issue', 'message', 'error', 'doc', 'pr', 'contact'])
+    .nullable()
+    .describe("Restrict to one type ONLY if explicit ('which tasks' -> issue)."),
+  status: z
+    .string()
+    .nullable()
+    .describe("e.g. 'blocked','unresolved'. Only if the question names a state. Null otherwise."),
+  entities: z.array(z.string()).describe('People/companies/projects named or implied.'),
+  intent: z
+    .enum(['daily_briefing', 'lookup', 'followups', 'summary', 'status_check'])
+    .describe('What the founder wants, for downstream handling.'),
+})
 ```
 
 **System prompt (interpolate real dates server-side):**
@@ -668,19 +703,19 @@ You receive:
 
 ## 10. Security & Hardening
 
-**Indirect prompt injection — the system's defining risk.** The assistant ingests untrusted external content (anyone can email the founder or post in a channel) and feeds it to an LLM. The *severity* of an injection depends entirely on **what side-effecting tools the answer-time model holds** — so that is the first design question, not an afterthought:
+**Indirect prompt injection — the system's defining risk.** The assistant ingests untrusted external content (anyone can email the founder or post in a channel) and feeds it to an LLM. The _severity_ of an injection depends entirely on **what side-effecting tools the answer-time model holds** — so that is the first design question, not an afterthought:
 
-- **Read-only synthesis is the primary defense.** The answer-time model has **no side-effecting tools** — it only retrieves and writes prose. A successful injection can therefore at worst manipulate the *answer* (low severity); it cannot send email, create issues, or delete anything, because the model has no way to. Any action that *does* have side effects (send, create, schedule) is routed through a **separate, explicitly user-confirmed path** with least-privilege scopes — never invoked directly from retrieved content. This single architectural choice removes the high-severity class of injection entirely.
-- **Data/instruction separation.** The synthesis prompt (see §9.4) frames all retrieved content as *data, not instructions*, and the model is told never to act on embedded commands. This is the load-bearing behavioral control.
+- **Read-only synthesis is the primary defense.** The answer-time model has **no side-effecting tools** — it only retrieves and writes prose. A successful injection can therefore at worst manipulate the _answer_ (low severity); it cannot send email, create issues, or delete anything, because the model has no way to. Any action that _does_ have side effects (send, create, schedule) is routed through a **separate, explicitly user-confirmed path** with least-privilege scopes — never invoked directly from retrieved content. This single architectural choice removes the high-severity class of injection entirely.
+- **Data/instruction separation.** The synthesis prompt (see §9.4) frames all retrieved content as _data, not instructions_, and the model is told never to act on embedded commands. This is the load-bearing behavioral control.
 - **Retrieval rail (relevance + budget).** A thin filter between retrieval and assembly that scores each chunk for relevance to the actual query, drops distant ones, and caps item count to prevent context flooding. Its primary value is **relevance and diversity**, not injection blocking.
-- **Pattern-scanning is defense-in-depth only.** Scanning retrieved text for role-override phrases / instruction delimiters catches naive attempts but is trivially bypassed by paraphrase — so it is a low-confidence backstop, explicitly *not* relied upon. The protection comes from read-only synthesis and data/instruction separation, not from the regex.
+- **Pattern-scanning is defense-in-depth only.** Scanning retrieved text for role-override phrases / instruction delimiters catches naive attempts but is trivially bypassed by paraphrase — so it is a low-confidence backstop, explicitly _not_ relied upon. The protection comes from read-only synthesis and data/instruction separation, not from the regex.
 - **Input/output guardrails** — detect malicious intent / PII on input; check responses for leakage and format compliance on output, as the minimum posture for a user-facing LLM.
 
 **Tenant isolation.** Row-Level Security on every table, scoped by `user_id`, with one Postgres role and the session tagged per request. Postgres refuses cross-tenant queries — there is no path to forget a tenant filter in code. Retrieval is additionally filtered by `user_id` at the query layer (belt and suspenders).
 
 **Secrets.** Connection strings and API keys are passed via environment variables, never committed and never passed as CLI args. `.env` and any local stores are gitignored.
 
-**Workshop / product separation.** The dev-side tooling (GStack, GBrain) lives in global config and local stores, never in the product repo. If GBrain uses Supabase for its dev-memory, it points at a *different* project than the product's context engine — the founder's data and the coding agent's memory never share a database.
+**Workshop / product separation.** The dev-side tooling (GStack, GBrain) lives in global config and local stores, never in the product repo. If GBrain uses Supabase for its dev-memory, it points at a _different_ project than the product's context engine — the founder's data and the coding agent's memory never share a database.
 
 **LLM ingress.** OpenRouter is wrapped with retry/backoff, a fallback chain, and a circuit breaker so a gateway outage sheds to a backup or degrades gracefully rather than failing the request path — detailed in §11. The Vercel AI SDK makes provider-swap trivial.
 
@@ -690,7 +725,7 @@ You receive:
 
 This is a per-founder (multi-tenant) system, so scale = tenancy + vector volume + ingestion throughput.
 
-This system is a **workload-asymmetry** problem, and the design leans into it: a *low-QPS, latency-sensitive read plane* sits on top of a *high-volume, latency-tolerant ingestion plane*, decoupled by the database. That asymmetry is what makes it both scalable (embarrassingly tenant-partitionable) and resilient (serving survives ingestion outages). Everything added below is **free-tier or pure application code** — nothing here costs anything at one or two users; the items that *would* cost money are named at the end and deliberately not built.
+This system is a **workload-asymmetry** problem, and the design leans into it: a _low-QPS, latency-sensitive read plane_ sits on top of a _high-volume, latency-tolerant ingestion plane_, decoupled by the database. That asymmetry is what makes it both scalable (embarrassingly tenant-partitionable) and resilient (serving survives ingestion outages). Everything added below is **free-tier or pure application code** — nothing here costs anything at one or two users; the items that _would_ cost money are named at the end and deliberately not built.
 
 **Tenancy & isolation.** Single shared schema + RLS + `user_id` on every row. Operationally simple, secure by construction, and the foundation for partitioning. No cross-tenant query ever runs.
 
@@ -700,7 +735,7 @@ This system is a **workload-asymmetry** problem, and the design leans into it: a
 
 **Vector volume & in-place levers.** A single Postgres with HNSW is comfortable to ~5–10M vectors with active writes (1536-dim vectors keep the index compact). The in-place levers as data grows, none of which change the architecture: `halfvec` / binary quantization (keep the graph in RAM), and `pgvectorscale` (DiskANN + SBQ) for disk-based scale to 100M+. Maintain with parallel HNSW builds, `REINDEX INDEX CONCURRENTLY`, and regular `VACUUM`/`ANALYZE`. Pin pgvector ≥ 0.8.x.
 
-**Ingestion throughput & the real cost driver.** The Trigger.dev worker tier scales horizontally and independently of the read path; idempotent steps + retries make high-volume sync safe, and per-tenant/per-source backoff respects third-party limits. The dominant *cost* is not storage or vectors — it is **per-item LLM work** (enrichment + triple extraction). Two designed-in decisions contain it: enrichment is **skipped for structured items** (templated provenance, no LLM), and triple extraction is **gated to high-signal sources** (§7). Prompt caching on enrichment (§9.1) cuts long-doc cost ~87%. This is the line to watch on the cost model.
+**Ingestion throughput & the real cost driver.** The Trigger.dev worker tier scales horizontally and independently of the read path; idempotent steps + retries make high-volume sync safe, and per-tenant/per-source backoff respects third-party limits. The dominant _cost_ is not storage or vectors — it is **per-item LLM work** (enrichment + triple extraction). Two designed-in decisions contain it: enrichment is **skipped for structured items** (templated provenance, no LLM), and triple extraction is **gated to high-signal sources** (§7). Prompt caching on enrichment (§9.1) cuts long-doc cost ~87%. This is the line to watch on the cost model.
 
 **Semantic response cache — the gateway relief valve (Redis/Upstash, free tier).** The LLM gateway is the read path's throughput, cost, and reliability ceiling, so the cheapest win is not calling it twice for the same thing. On each question, embed the normalized query and key it per tenant (`user_id` + an embedding bucket); on a near-hit within TTL, serve the cached answer and skip the entire pipeline (stage 0, §8). This is dramatic for briefing-style and repeated queries, and it doubles as an outage cushion (cached answers survive a gateway brownout). Upstash's free serverless tier covers a take-home outright — pure upside, no cost.
 
@@ -712,7 +747,7 @@ This system is a **workload-asymmetry** problem, and the design leans into it: a
 
 **Storage tiering — raw payloads (free now; object-store offload is the scale path).** The episodic `raw` payload (§6) is the ground truth for re-processing, but it's bulky and rarely read. For the take-home it lives as a **`raw` JSONB column in Postgres** — zero added dependency, free. At scale, the toggle is to **offload `raw` to object storage** (S3-class) keyed by `user_id/source/external_id`, replacing the column with a pointer, which keeps the hot relational table lean and cheap without losing the ground truth. Same code path, one flag — the storage backend changes, the ingestion logic doesn't.
 
-**Deliberately out of scope (named, not built).** Two further levers belong to genuine production scale and are intentionally *not* implemented here because they cost money and are overkill for one or two users: **read replicas** (a write/ingestion surge isn't a concern at this volume) and **cross-instance tenant sharding** (a single partitioned Postgres is far from its ceiling). Both are clean future moves precisely because tenancy, partitioning, and the plane split are already in place — but building them now would be cost and complexity with no benefit.
+**Deliberately out of scope (named, not built).** Two further levers belong to genuine production scale and are intentionally _not_ implemented here because they cost money and are overkill for one or two users: **read replicas** (a write/ingestion surge isn't a concern at this volume) and **cross-instance tenant sharding** (a single partitioned Postgres is far from its ceiling). Both are clean future moves precisely because tenancy, partitioning, and the plane split are already in place — but building them now would be cost and complexity with no benefit.
 
 ---
 
@@ -720,7 +755,7 @@ This system is a **workload-asymmetry** problem, and the design leans into it: a
 
 **Tracing.** Every LLM call and every retrieval is traced (Langfuse): input, output, model, token count, latency, cost, and — for retrieval — which items were returned, reranked, and dropped by the rail. This is what makes the system debuggable and tunable rather than a black box.
 
-**Evaluation harness.** A golden set of representative founder questions, each tagged with the `context_item` IDs that *should* be retrieved. The harness measures retrieval recall@k and whether the synthesized answer cited the right sources. It serves two purposes: it is the instrument for tuning the knobs (`ef_search`, RRF weighting, rerank depth, rail thresholds) instead of guessing, and it is the evidence that the assistant is grounded and resists hallucination. Threshold checks can gate deploys in CI.
+**Evaluation harness.** A golden set of representative founder questions, each tagged with the `context_item` IDs that _should_ be retrieved. The harness measures retrieval recall@k and whether the synthesized answer cited the right sources. It serves two purposes: it is the instrument for tuning the knobs (`ef_search`, RRF weighting, rerank depth, rail thresholds) instead of guessing, and it is the evidence that the assistant is grounded and resists hallucination. Threshold checks can gate deploys in CI.
 
 ---
 
@@ -729,9 +764,9 @@ This system is a **workload-asymmetry** problem, and the design leans into it: a
 Both surfaces call **one shared answer API** — the retrieval + synthesis pipeline. No logic is duplicated per surface.
 
 - **Next.js web chat** — the primary interface. The example founder questions are one-click presets so the system is testable instantly.
-- **Voice input (both surfaces).** A founder can *speak* a question — tap-to-talk on web, a voice message on Telegram. **Deepgram streaming STT** (Nova-3, sub-300ms; or Flux for true conversational turn-taking) transcribes it, and the transcribed text enters the pipeline at stage 0 exactly like a typed question — it keys the semantic cache and runs through query understanding unchanged. Natural for a mobile, time-pressed founder, and nearly free to add since the audio primitive is already in the stack for ingestion.
+- **Voice input (both surfaces).** A founder can _speak_ a question — tap-to-talk on web, a voice message on Telegram. **Deepgram streaming STT** (Nova-3, sub-300ms; or Flux for true conversational turn-taking) transcribes it, and the transcribed text enters the pipeline at stage 0 exactly like a typed question — it keys the semantic cache and runs through query understanding unchanged. Natural for a mobile, time-pressed founder, and nearly free to add since the audio primitive is already in the stack for ingestion.
 - **Telegram bot** — a thin wrapper over the same answer endpoint (~30 lines via the Bot API). Free, no phone-number provisioning, ideal for the proactive morning briefing.
-- **Proactive daily briefing** — a scheduled job (on the Trigger.dev job platform) runs the "what should I focus on today?" flow each morning and pushes the result to Telegram. Briefings are **staggered with jitter** across a morning window and run through a bounded-concurrency queue (and can be pre-computed off-peak), so the fan-out never becomes a synchronous spike on the LLM gateway (§11). *Optional:* render the briefing to audio with Deepgram Aura (TTS) and push it as a Telegram voice message — a listenable morning brief for the commute.
+- **Proactive daily briefing** — a scheduled job (on the Trigger.dev job platform) runs the "what should I focus on today?" flow each morning and pushes the result to Telegram. Briefings are **staggered with jitter** across a morning window and run through a bounded-concurrency queue (and can be pre-computed off-peak), so the fan-out never becomes a synchronous spike on the LLM gateway (§11). _Optional:_ render the briefing to audio with Deepgram Aura (TTS) and push it as a Telegram voice message — a listenable morning brief for the commute.
 
 ---
 
@@ -739,7 +774,7 @@ Both surfaces call **one shared answer API** — the retrieval + synthesis pipel
 
 The three memory layers and the surrounding hardening are built so each stage is **independently shippable** — if the clock runs out, the result is a complete working system, not several half-wired ones.
 
-1. **Layer 1 end-to-end (the spine).** Normalize → contextual enrich → embed/index for 2–3 real sources (Gmail + Linear + one more), plus the query-understanding → hybrid+filtered → rerank → grounded-synthesis loop with citations. Demoable on its own. *This alone satisfies the core of the assignment.*
+1. **Layer 1 end-to-end (the spine).** Normalize → contextual enrich → embed/index for 2–3 real sources (Gmail + Linear + one more), plus the query-understanding → hybrid+filtered → rerank → grounded-synthesis loop with citations. Demoable on its own. _This alone satisfies the core of the assignment._
 2. **Ingestion on the job platform.** Move ingestion onto Trigger.dev as idempotent steps; add triggers + scheduled sync. Add Sentry and fixture-backed connectors for breadth.
 3. **Layer 2 (relationship graph).** Add `entity`/`edge` + the triple-extraction step + graph expansion in retrieval.
 4. **Layer 3 (personalization).** Wire Supermemory for cross-session profile; inject into synthesis.
@@ -751,17 +786,17 @@ Build the core; design everything so the rest is a clean addition.
 
 ## 15. Deliverables Mapping
 
-| Assignment deliverable | Where it is satisfied |
-|---|---|
-| **Connects to ≥ 2 data sources** | Gmail + Linear live, plus Slack/Notion live and Calendar/GitHub/Sentry via the same pipeline (§4, §7) |
-| **Central context layer** | Supabase — Layers 1 & 2 (§5, §6) |
-| **Normalizes into a shared format** | `context_item` schema + per-source normalization (§6.1, §7) |
-| **Cross-context Q&A** | Retrieval pipeline + synthesis (§8, §9.4) |
-| **Retrieves relevant context before answering** | Hybrid + filtered + reranked retrieval, grounded synthesis (§8) |
-| **Interface to test it** | Next.js web chat + Telegram (§13) |
-| **≥ 3 example questions** | §16 |
-| **Tradeoffs & future improvements** | Production swaps and ceilings noted throughout (§4, §11); the documented BM25 and Nango upgrade paths |
-| **Traces link (AI-assisted dev process)** | Built with an interactive workflow (optionally GStack) so the Traces log reflects our reasoning (§4, §10) |
+| Assignment deliverable                          | Where it is satisfied                                                                                     |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Connects to ≥ 2 data sources**                | Gmail + Linear live, plus Slack/Notion live and Calendar/GitHub/Sentry via the same pipeline (§4, §7)     |
+| **Central context layer**                       | Supabase — Layers 1 & 2 (§5, §6)                                                                          |
+| **Normalizes into a shared format**             | `context_item` schema + per-source normalization (§6.1, §7)                                               |
+| **Cross-context Q&A**                           | Retrieval pipeline + synthesis (§8, §9.4)                                                                 |
+| **Retrieves relevant context before answering** | Hybrid + filtered + reranked retrieval, grounded synthesis (§8)                                           |
+| **Interface to test it**                        | Next.js web chat + Telegram (§13)                                                                         |
+| **≥ 3 example questions**                       | §16                                                                                                       |
+| **Tradeoffs & future improvements**             | Production swaps and ceilings noted throughout (§4, §11); the documented BM25 and Nango upgrade paths     |
+| **Traces link (AI-assisted dev process)**       | Built with an interactive workflow (optionally GStack) so the Traces log reflects our reasoning (§4, §10) |
 
 ---
 
@@ -777,4 +812,4 @@ How three representative questions flow through the pipeline:
 
 ---
 
-*End of document.*
+_End of document._
