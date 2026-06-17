@@ -3,6 +3,7 @@
 // lifting (normalize/chunk/enrich/embed/upsert) lives in lib/ingestion/run.ts so
 // it stays testable outside Trigger.dev.
 
+import '../lib/ws-polyfill'
 import { task } from '@trigger.dev/sdk'
 import { propagateAttributes, startActiveObservation } from '@langfuse/tracing'
 import type { SourceName } from '../lib/connectors/types'

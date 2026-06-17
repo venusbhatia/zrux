@@ -4,6 +4,7 @@
 // reconcileDeletions). Runs less often than the poll: deletion is lower-urgency
 // than new content and the id-only walk is the cheapest full pass.
 
+import '../lib/ws-polyfill'
 import { schedules } from '@trigger.dev/sdk'
 import type { SourceName } from '../lib/connectors/types'
 import { getConnector } from '../lib/connectors/registry'
