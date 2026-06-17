@@ -8,7 +8,7 @@ zrux connects to your email, calendar, issues, docs, and team chat, then turns t
 
 <br />
 
-[Open zrux](https://zrux.vercel.app) | [How it works](#how-zrux-works) | [Connectors](#connects-to) | [Run locally](#run-locally)
+[How it works](#how-zrux-works) | [Connectors](#connects-to) | [Run locally](#run-locally)
 
 </div>
 
@@ -76,11 +76,8 @@ zrux is built around one product rule: the answer path reads stored context. Sou
 
 ```text
 What should I focus on today?
-Which tasks are blocked right now?
-What should I know before my next meeting?
-Who am I overdue to reply to?
-What follow-ups am I missing?
-What customer issues are showing up repeatedly?
+Anything from Zrux that needs my attention?
+What blockers are we facing, if any?
 ```
 
 When the connected tools do not contain enough evidence, zrux says that plainly instead of inventing an answer.
@@ -237,7 +234,7 @@ pnpm db:types
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) for local development, or use the live product at [zrux.vercel.app](https://zrux.vercel.app).
+Open [http://localhost:3000](http://localhost:3000) for local development.
 
 The full credential guide is in [docs/SETUP.md](docs/SETUP.md). `.env.example` lists the required variable names without real secrets.
 
