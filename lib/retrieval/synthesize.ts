@@ -4,7 +4,12 @@
 // to a refusal without spending an LLM call (see isThin / REFUSAL).
 
 import { streamText } from 'ai'
-import { chatModel, noteGatewayFailure, noteGatewaySuccess } from '../llm/gateway'
+import {
+  chatModel,
+  MAX_OUTPUT_TOKENS,
+  noteGatewayFailure,
+  noteGatewaySuccess,
+} from '../llm/gateway'
 import { aiTelemetry } from '../observability/langfuse'
 import type { AssembledContext } from './types'
 
@@ -39,6 +44,7 @@ export function synthesizeStream(
     system: SYNTH_SYSTEM,
     prompt,
     temperature: 0.2,
+    maxTokens: MAX_OUTPUT_TOKENS.synthesis,
     experimental_telemetry: aiTelemetry('synthesize-answer'),
     // streamText errors surface as the stream drains, so feed the outcome back to
     // the breaker here: a stream failure still counts toward tripping it, and a

@@ -40,6 +40,19 @@ function openrouterClient(): ReturnType<typeof createOpenAI> {
 export const PRIMARY_MODEL = process.env.OPENROUTER_PRIMARY_MODEL ?? 'anthropic/claude-sonnet-4-6'
 export const FALLBACK_MODEL = process.env.OPENROUTER_FALLBACK_MODEL ?? 'anthropic/claude-haiku-4-5'
 
+// Output-token caps per call kind. With maxTokens unset, OpenRouter's
+// affordability gate reserves the model's FULL max output (64k for sonnet), so a
+// low-balance key rejects the request ("requires more credits, or fewer
+// max_tokens") and the answer/brief comes back empty. None of our calls need more
+// than ~2k; capping also cuts latency and cost. Tune here, not per call site.
+export const MAX_OUTPUT_TOKENS = {
+  synthesis: 1500, // cited prose answer
+  brief: 2000, // up to six Today cards
+  plan: 800, // small structured plan
+  gloss: 200, // one enrichment sentence
+  triples: 1200, // array of extracted triples
+} as const
+
 // Read-only chat model. The answer-time model holds zero side-effecting tools;
 // that is the primary injection defense (CLAUDE.md "Security and injection").
 export function chatModel(modelId: string = PRIMARY_MODEL): LanguageModelV1 {
