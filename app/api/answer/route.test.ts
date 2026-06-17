@@ -11,6 +11,7 @@ const m = vi.hoisted(() => {
     FakeUnauthorized,
     FakeGatewayDown,
     getUserId: vi.fn(),
+    planQuery: vi.fn(),
     retrieve: vi.fn(),
     synthesizeStream: vi.fn(),
     embedText: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('@/lib/auth/session', () => ({
   UnauthorizedError: m.FakeUnauthorized,
 }))
 vi.mock('@/lib/retrieval/pipeline', () => ({ retrieve: m.retrieve }))
+vi.mock('@/lib/retrieval/plan', () => ({ planQuery: m.planQuery }))
 vi.mock('@/lib/retrieval/synthesize', () => ({
   isThin: (ctx: { citations: unknown[]; block: string }) =>
     ctx.citations.length === 0 || ctx.block.trim().length === 0,
@@ -51,6 +53,15 @@ vi.mock('@/lib/personalization/enqueue', () => ({ enqueueLearnPreferences: vi.fn
 vi.mock('@/lib/ingestion/embed', () => ({ embedText: m.embedText }))
 vi.mock('@/lib/cache/semantic-cache', () => ({
   semanticCache: { get: m.cacheGet, set: m.cacheSet },
+  // Real-ish stub: the route uses this to namespace the cache by entity scope.
+  entityScopeKey: (entities: string[] | undefined) =>
+    entities && entities.length > 0
+      ? [...entities]
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean)
+          .sort()
+          .join('|') || null
+      : null,
 }))
 vi.mock('@/lib/llm/gateway', () => ({
   assertGatewayUp: m.assertGatewayUp,
@@ -76,6 +87,9 @@ function decodeMeta(res: Response): Record<string, unknown> {
 describe('POST /api/answer', () => {
   beforeEach(() => {
     m.getUserId.mockReset().mockResolvedValue('u1')
+    // Plan runs in the route before the cache lookup (to derive entity scope).
+    // Default: a no-entity daily_briefing; individual tests override intent/entities.
+    m.planQuery.mockReset().mockResolvedValue({ intent: 'daily_briefing', entities: [] })
     m.retrieve.mockReset()
     m.synthesizeStream.mockReset()
     m.embedText.mockReset().mockResolvedValue(EMBEDDING)
@@ -99,6 +113,7 @@ describe('POST /api/answer', () => {
   }
 
   it('short-circuits to the refusal when context is thin (no synthesis call)', async () => {
+    m.planQuery.mockResolvedValue({ intent: 'lookup', entities: [] })
     m.retrieve.mockResolvedValue(
       retrieveResult({
         plan: { intent: 'lookup' },
@@ -170,7 +185,52 @@ describe('POST /api/answer', () => {
     await POST(req({ question: 'cache me' }))
 
     expect(m.cacheSet).toHaveBeenCalledTimes(1)
-    expect(m.cacheSet).toHaveBeenCalledWith('u1', EMBEDDING, 'the answer')
+    // Fourth arg is the entity scope (null here: the default plan names no entity).
+    expect(m.cacheSet).toHaveBeenCalledWith('u1', EMBEDDING, 'the answer', null)
+  })
+
+  it('namespaces the cache by entity scope for a person-scoped question', async () => {
+    m.planQuery.mockResolvedValue({ intent: 'blocker_scan', entities: ['Priya'] })
+    m.retrieve.mockResolvedValue(retrieveResult())
+    m.synthesizeStream.mockImplementation(
+      (_q: string, _ctx: unknown, opts: { onFinish: (t: string) => Promise<void> }) => {
+        void opts.onFinish('priya answer')
+        return {
+          toTextStreamResponse: ({ headers }: { headers: Record<string, string> }) =>
+            new Response('priya answer', { status: 200, headers }),
+        }
+      },
+    )
+
+    await POST(req({ question: 'is priya facing any blockers?' }))
+
+    // Read and write both carry the normalized entity scope, so a near-identical
+    // question about a different person cannot hit this entry.
+    expect(m.cacheGet).toHaveBeenCalledWith('u1', EMBEDDING, 'priya')
+    expect(m.cacheSet).toHaveBeenCalledWith('u1', EMBEDDING, 'priya answer', 'priya')
+  })
+
+  it('serves an unscoped cache hit when planning is down (resilience)', async () => {
+    m.planQuery.mockRejectedValue(new m.FakeGatewayDown('plan gateway down'))
+    m.cacheGet.mockResolvedValue('stale but served')
+
+    const res = await POST(req({ question: 'anything' }))
+
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('stale but served')
+    expect(m.cacheGet).toHaveBeenCalledWith('u1', EMBEDDING)
+    expect(m.retrieve).not.toHaveBeenCalled()
+    expect(decodeMeta(res)).toMatchObject({ cached: true })
+  })
+
+  it('returns 503 when planning is down and no cached answer exists', async () => {
+    m.planQuery.mockRejectedValue(new m.FakeGatewayDown('plan gateway down'))
+    m.cacheGet.mockResolvedValue(null)
+
+    const res = await POST(req({ question: 'anything' }))
+
+    expect(res.status).toBe(503)
+    expect(m.retrieve).not.toHaveBeenCalled()
   })
 
   it('does NOT write to the cache when context is thin (refusal path)', async () => {

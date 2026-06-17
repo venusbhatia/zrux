@@ -12,9 +12,11 @@ import { executeTool } from './composio'
 import { warnOnUndercollection } from './util'
 
 // Slugs verified against the live Composio Slack toolkit (157 tools). conversations.list
-// maps to SLACK_LIST_ALL_CHANNELS; conversations.history to SLACK_FETCH_CONVERSATION_HISTORY.
+// maps to SLACK_LIST_ALL_CHANNELS; conversations.history to SLACK_FETCH_CONVERSATION_HISTORY;
+// team.info to SLACK_FETCH_TEAM_INFO (returns the workspace team id, resolved once per sync).
 const LIST_CHANNELS = 'SLACK_LIST_ALL_CHANNELS'
 const FETCH_HISTORY = 'SLACK_FETCH_CONVERSATION_HISTORY'
+const FETCH_TEAM_INFO = 'SLACK_FETCH_TEAM_INFO'
 const PAGE = 100
 
 interface SlackChannel {
@@ -40,12 +42,15 @@ interface HistoryResponse {
   has_more?: boolean
   response_metadata?: { next_cursor?: string }
 }
+interface TeamInfoResponse {
+  team?: { id?: string; domain?: string }
+}
 
 // Slack's conversations.history returns no permalink and we never store the
 // workspace subdomain, so build the official app_redirect deep link from the team
-// id carried on each message. It resolves the right workspace without a subdomain
-// and targets the exact message via message_ts. Returns undefined when team/channel
-// are missing so the citation simply stays unlinked (no broken href).
+// id. It resolves the right workspace without a subdomain and targets the exact
+// message via message_ts. Returns undefined when team/channel are missing so the
+// citation simply stays unlinked (no broken href).
 export function slackPermalink(
   team: string | undefined,
   channelId: string | undefined,
@@ -55,6 +60,24 @@ export function slackPermalink(
   const params = new URLSearchParams({ team, channel: channelId })
   if (ts) params.set('message_ts', ts)
   return `https://slack.com/app_redirect?${params.toString()}`
+}
+
+// conversations.history is not guaranteed to put `team` on each message
+// (https://docs.slack.dev/reference/methods/conversations.history), so resolve the
+// workspace team id once per sync via team.info and use it as the fallback for any
+// message that arrives without one. Best-effort: a lookup failure just leaves urls
+// unbuilt rather than failing the whole sync.
+async function fetchWorkspaceTeam(userId: string): Promise<string | undefined> {
+  try {
+    const data = (await executeTool(FETCH_TEAM_INFO, userId, {})) as TeamInfoResponse
+    return data.team?.id
+  } catch (err) {
+    console.warn(
+      '[slack] team.info lookup failed; message urls may be unset:',
+      (err as Error).message,
+    )
+    return undefined
+  }
 }
 
 // Slack message ts is a unix epoch with microseconds ("1718841600.123456").
@@ -73,10 +96,14 @@ function toRawItem(
   channelId: string,
   channelName: string | undefined,
   m: SlackMessage,
+  fallbackTeam?: string,
 ): RawItem | null {
   if (!isContentMessage(m)) return null
   const when = tsToDate(m.ts)
   const author = m.username ?? m.user ?? undefined
+  // Prefer the message's own team; fall back to the workspace team resolved for
+  // this sync (history messages do not reliably carry team).
+  const team = m.team ?? fallbackTeam
   return {
     source: 'slack',
     type: 'message',
@@ -84,7 +111,7 @@ function toRawItem(
     externalId: `${channelId}:${m.ts}`,
     title: channelName ? `#${channelName}` : undefined,
     author,
-    url: slackPermalink(m.team, channelId, m.ts),
+    url: slackPermalink(team, channelId, m.ts),
     sourceCreatedAt: when,
     sourceUpdatedAt: when,
     metadata: {
@@ -92,7 +119,7 @@ function toRawItem(
       channel: channelName,
       threadTs: m.thread_ts,
       slackUser: m.user,
-      team: m.team,
+      team,
     },
     body: m.text ?? '',
     raw: m,
@@ -119,6 +146,7 @@ async function* fetchChannelHistory(
   userId: string,
   channel: SlackChannel,
   oldest?: Date,
+  fallbackTeam?: string,
 ): AsyncIterable<RawItem> {
   let cursor: string | undefined
   let collected = 0
@@ -131,7 +159,7 @@ async function* fetchChannelHistory(
     })) as HistoryResponse
     const messages = data.messages ?? []
     for (const m of messages) {
-      const item = toRawItem(channel.id!, channel.name, m)
+      const item = toRawItem(channel.id!, channel.name, m, fallbackTeam)
       if (item) {
         collected++
         yield item
@@ -142,11 +170,15 @@ async function* fetchChannelHistory(
   void collected
 }
 
-async function* fetchAll(userId: string, oldest?: Date): AsyncIterable<RawItem> {
+async function* fetchAll(
+  userId: string,
+  oldest?: Date,
+  fallbackTeam?: string,
+): AsyncIterable<RawItem> {
   let channels = 0
   for await (const channel of listMemberChannels(userId)) {
     channels++
-    yield* fetchChannelHistory(userId, channel, oldest)
+    yield* fetchChannelHistory(userId, channel, oldest, fallbackTeam)
   }
   // No global total to assert against; surface the channel count so an empty
   // walk (0 channels) is visibly distinct from "channels had no messages".
@@ -158,11 +190,13 @@ export const slackConnector: Connector = {
 
   async *load(ctx: SyncContext): AsyncIterable<RawItem> {
     const oldest = new Date(Date.now() - ctx.lookbackDays * 86400_000)
-    yield* fetchAll(ctx.userId, oldest)
+    const team = await fetchWorkspaceTeam(ctx.userId)
+    yield* fetchAll(ctx.userId, oldest, team)
   },
 
   async *poll(ctx: SyncContext, since: Date): AsyncIterable<RawItem> {
-    yield* fetchAll(ctx.userId, since)
+    const team = await fetchWorkspaceTeam(ctx.userId)
+    yield* fetchAll(ctx.userId, since, team)
   },
 
   // Slack has no cheap id-only listing: slim must walk conversation history, so an

@@ -10,13 +10,14 @@
 import type { NextRequest } from 'next/server'
 import { propagateAttributes, startActiveObservation } from '@langfuse/tracing'
 import { retrieve } from '@/lib/retrieval/pipeline'
+import { planQuery } from '@/lib/retrieval/plan'
 import { isThin, synthesizeStream, REFUSAL } from '@/lib/retrieval/synthesize'
 import { getUserId, UnauthorizedError } from '@/lib/auth/session'
 import { flushTracing, tracingEnabled, traceStage } from '@/lib/observability/langfuse'
 import { captureError } from '@/lib/observability/report'
 import { enqueueLearnPreferences } from '@/lib/personalization/enqueue'
 import { embedText } from '@/lib/ingestion/embed'
-import { semanticCache } from '@/lib/cache/semantic-cache'
+import { semanticCache, entityScopeKey } from '@/lib/cache/semantic-cache'
 import { assertGatewayUp, GatewayDownError } from '@/lib/llm/gateway'
 import type { Citation } from '@/lib/retrieval/types'
 
@@ -59,6 +60,16 @@ function metaHeaders(partial: Partial<Meta>): Record<string, string> {
   return {
     'x-zrux-meta': Buffer.from(JSON.stringify(buildMeta(partial)), 'utf8').toString('base64'),
   }
+}
+
+function cachedResponse(text: string): Response {
+  return new Response(text, {
+    status: 200,
+    headers: {
+      'content-type': 'text/plain; charset=utf-8',
+      ...metaHeaders({ cached: true }),
+    },
+  })
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
@@ -136,30 +147,49 @@ async function buildAnswer(
   // Stage 0: embed the raw question once (reused by the cache check and search).
   const queryEmbedding = await embedText(question)
 
-  // Stage 0: semantic cache. A near-identical prior question short-circuits the
-  // whole pipeline. Fail-open: a Redis error is treated as a miss inside get().
+  // Stage 1 (plan) BEFORE the cache lookup: the semantic cache is namespaced by
+  // the question's entity scope, so we must know plan.entities before reading it.
+  // Otherwise two near-identical but differently-scoped questions ("Priya's
+  // blockers" then "John's blockers") collide on the embedding bucket and the
+  // second serves the first's scoped answer. The plan is reused by retrieve()
+  // below, so a cache miss costs no extra LLM call.
+  let plan
+  try {
+    plan = await planQuery(question)
+  } catch (err) {
+    // Gateway down: we cannot plan, so we cannot scope. Preserve the cache's
+    // outage-resilience with a best-effort unscoped hit; if there is none,
+    // rethrow so POST returns a clean 503.
+    if (!(err instanceof GatewayDownError)) throw err
+    const fallback = await semanticCache.get(userId, queryEmbedding)
+    if (fallback !== null) {
+      await onDone?.(fallback)
+      return cachedResponse(fallback)
+    }
+    throw err
+  }
+  const scope = entityScopeKey(plan.entities)
+
+  // Stage 0: semantic cache, namespaced by entity scope. A near-identical prior
+  // question in the same scope short-circuits the whole pipeline. Fail-open: a
+  // Redis error is treated as a miss inside get().
   const cached = await traceStage(
     'cache-check',
-    { userId },
-    () => semanticCache.get(userId, queryEmbedding),
+    { userId, scope },
+    () => semanticCache.get(userId, queryEmbedding, scope),
     (hit) => ({ hit: hit !== null }),
   )
   if (cached) {
     await onDone?.(cached)
-    return new Response(cached, {
-      status: 200,
-      headers: {
-        'content-type': 'text/plain; charset=utf-8',
-        ...metaHeaders({ cached: true }),
-      },
-    })
+    return cachedResponse(cached)
   }
 
-  // Cache miss: run the full pipeline, reusing the embedding we just computed.
-  const { plan, context, relaxed, itemCount, profile, rerankApplied, railDropped } = await retrieve(
+  // Cache miss: run the full pipeline, reusing the embedding + plan we computed.
+  const { context, relaxed, itemCount, profile, rerankApplied, railDropped } = await retrieve(
     userId,
     question,
     queryEmbedding,
+    plan,
   )
   const personalization = { standing: profile.standingCount, scoped: profile.scopedCount }
 
@@ -220,7 +250,7 @@ async function buildAnswer(
       // Write the answer to the semantic cache on synthesis success only (P5-4):
       // never cache thin/refusal/degraded responses. Fire-and-forget, fail-open.
       void semanticCache
-        .set(userId, queryEmbedding, text)
+        .set(userId, queryEmbedding, text, scope)
         .catch((e) => captureError('cache', e, { userId, op: 'set' }))
       // Out-of-band: learn durable preferences after the conversation. Guarded so
       // it can never throw into the stream.
