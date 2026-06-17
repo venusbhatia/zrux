@@ -28,16 +28,24 @@ async function main() {
   const db = createServiceClient()
 
   // Items that produced at least one edge: the only place stale junk can live.
-  const { data: edges, error: edgeErr } = await db
-    .from('edge')
-    .select('user_id, source_item')
-    .not('source_item', 'is', null)
-    .limit(50000)
-  if (edgeErr) throw new Error(edgeErr.message)
+  // Paged so a tenant with more edges than the PostgREST response cap is read in
+  // full (a partial read would silently skip items from reprocessing).
+  const edges: { user_id: string; source_item: string }[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from('edge')
+      .select('user_id, source_item')
+      .not('source_item', 'is', null)
+      .range(from, from + 999)
+    if (error) throw new Error(`edge read: ${error.message}`)
+    const rows = (data ?? []) as { user_id: string; source_item: string }[]
+    edges.push(...rows)
+    if (rows.length < 1000) break
+  }
 
-  const itemIds = [...new Set((edges ?? []).map((e) => e.source_item))] as string[]
-  console.log(`tenants: ${new Set((edges ?? []).map((e) => e.user_id)).size}`)
-  console.log(`edges before: ${(edges ?? []).length}`)
+  const itemIds = [...new Set(edges.map((e) => e.source_item))]
+  console.log(`tenants: ${new Set(edges.map((e) => e.user_id)).size}`)
+  console.log(`edges before: ${edges.length}`)
   console.log(`items to reprocess: ${itemIds.length}`)
 
   // Load the items.
@@ -119,18 +127,19 @@ async function main() {
   console.log(`\nreprocessed items: ${processed} (extract failures kept old edges: ${failed})`)
   console.log(`edges after: ${edgesAfter}`)
 
-  // Remove entities left with no edge.
+  // Remove entities left with no edge. Both reads MUST be complete and
+  // error-checked: PostgREST caps a single response (~1000 rows), so an
+  // unpaginated edge read would mark entities referenced only by later rows as
+  // orphans, and a *failed* read would collapse `referenced` to empty and delete
+  // every entity for the tenant. We page through all rows and throw on any error.
   const tenants = [...new Set([...items.values()].map((it) => it.user_id))]
   let orphans = 0
   for (const t of tenants) {
-    const { data: ents } = await db.from('entity').select('id').eq('user_id', t)
-    const { data: live } = await db.from('edge').select('subject_id, object_id').eq('user_id', t)
-    const referenced = new Set<string>()
-    for (const e of live ?? []) {
-      referenced.add(e.subject_id)
-      referenced.add(e.object_id)
-    }
-    const orphanIds = (ents ?? []).map((e) => e.id).filter((id) => !referenced.has(id))
+    const entIds = await fetchAllIds(db, 'entity', 'id', t, (r) => [r.id])
+    const referenced = new Set(
+      await fetchAllIds(db, 'edge', 'subject_id, object_id', t, (r) => [r.subject_id, r.object_id]),
+    )
+    const orphanIds = entIds.filter((id) => !referenced.has(id))
     for (let i = 0; i < orphanIds.length; i += 200) {
       const batch = orphanIds.slice(i, i + 200)
       const { error } = await db.from('entity').delete().in('id', batch).eq('user_id', t)
@@ -139,6 +148,31 @@ async function main() {
     }
   }
   console.log(`deleted orphan entities: ${orphans}`)
+}
+
+// Page through every row of a per-tenant table, throwing on any error so an
+// incomplete or failed read is never mistaken for "no rows" by the caller.
+async function fetchAllIds(
+  db: ReturnType<typeof createServiceClient>,
+  table: 'entity' | 'edge',
+  columns: string,
+  userId: string,
+  pick: (row: any) => string[],
+): Promise<string[]> {
+  const PAGE = 1000
+  const ids: string[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db
+      .from(table)
+      .select(columns)
+      .eq('user_id', userId)
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(`${table} read (orphan scan): ${error.message}`)
+    const rows = data ?? []
+    for (const r of rows) ids.push(...pick(r))
+    if (rows.length < PAGE) break
+  }
+  return ids
 }
 
 main().catch((e) => {
