@@ -12,7 +12,7 @@ import { hybridSearch } from '@/lib/retrieval/search'
 import { rollupToItems } from '@/lib/retrieval/rollup'
 import { isConnectable } from '@/lib/connectors/registry'
 import { searchResponseSchema, type SearchResult } from '@/lib/api/search-schema'
-import { matchPercent } from '@/lib/retrieval/relevance'
+import { confidenceScore, matchPercent, setReranked } from '@/lib/retrieval/relevance'
 import type { RolledItem } from '@/lib/retrieval/types'
 
 export const runtime = 'nodejs'
@@ -48,7 +48,12 @@ function tokenize(q: string): string[] {
 }
 
 function toResults(items: RolledItem[], highlight: string[]): SearchResult[] {
-  const topScore = items.length > 0 ? Math.max(...items.map((i) => i.score)) : 1
+  // Search runs no rerank step today, so rerank_score is 0 and this resolves to the
+  // hybrid score. Routing through the same set-level helpers as the Today brief
+  // keeps the two screens identical if search ever gains a rerank stage (Greptile).
+  const reranked = setReranked(items)
+  const topScore =
+    items.length > 0 ? Math.max(...items.map((i) => confidenceScore(i, reranked))) : 1
   return items.map((item) => ({
     item_id: item.item_id,
     source: item.source,
@@ -60,7 +65,7 @@ function toResults(items: RolledItem[], highlight: string[]): SearchResult[] {
     url: item.url,
     date: item.source_updated_at,
     score: item.score,
-    matchPercent: matchPercent(item.score, topScore),
+    matchPercent: matchPercent(confidenceScore(item, reranked), topScore),
   }))
 }
 
