@@ -18,8 +18,10 @@ async function main() {
   let skipped = 0
   // Keyset pagination by id: updated rows leave the `url is null` set, so an
   // offset cursor would skip rows; an id cursor stays stable and steps past the
-  // skipped (still-null) rows without looping.
-  let afterId = ''
+  // skipped (still-null) rows without looping. Seed with the nil UUID (the lowest
+  // possible uuid) so the first `gt('id', ...)` is a valid uuid comparison; an
+  // empty string would fail PostgREST's uuid cast before any row is read.
+  let afterId = '00000000-0000-0000-0000-000000000000'
 
   for (;;) {
     const { data, error } = await db

@@ -59,7 +59,7 @@ describe('slackConnector', () => {
     )
   })
 
-  it('handleEvent maps a single webhook message event', async () => {
+  it('handleEvent maps a single webhook message event and builds a url from the threaded team', async () => {
     const items = await collect(
       slackConnector.handleEvent!({
         type: 'message',
@@ -68,10 +68,16 @@ describe('slackConnector', () => {
         ts: '1718900000.000001',
         text: 'New term sheet from Northwind',
         user: 'U7',
+        // The webhook route threads envelope.team_id onto the event so real-time
+        // messages get a clickable url (the inner event has no team natively).
+        team: 'T9',
       }),
     )
     expect(items).toHaveLength(1)
     expect(items[0]!.externalId).toBe('C9:1718900000.000001')
-    expect(items[0]!.metadata).toMatchObject({ channelId: 'C9', channel: 'deals' })
+    expect(items[0]!.metadata).toMatchObject({ channelId: 'C9', channel: 'deals', team: 'T9' })
+    expect(items[0]!.url).toBe(
+      'https://slack.com/app_redirect?team=T9&channel=C9&message_ts=1718900000.000001',
+    )
   })
 })
