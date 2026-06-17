@@ -65,12 +65,12 @@ async function* fetchByQuery(userId: string, query: string): AsyncIterable<RawIt
       max_results: PAGE,
       include_payload: true,
       ...(pageToken ? { page_token: pageToken } : {}),
-    })) as GmailResponse
-    for (const m of data.messages ?? []) {
+    })) as GmailResponse | undefined
+    for (const m of data?.messages ?? []) {
       const item = toRawItem(m)
       if (item) yield item
     }
-    pageToken = data.nextPageToken || undefined
+    pageToken = data?.nextPageToken || undefined
   } while (pageToken)
 }
 

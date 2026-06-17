@@ -31,12 +31,14 @@ describe('gmailConnector', () => {
         nextPageToken: 'p2',
       })
       .mockResolvedValueOnce({ messages: [{ messageId: 'm2', subject: 'Intro' }] })
+      // load() runs a second `in:sent` history pass after the inbox window.
+      .mockResolvedValueOnce({ messages: [] })
 
     const items = await collect(
       gmailConnector.load({ userId: 'u1', source: 'gmail', lookbackDays: 90, cursor: null }),
     )
 
-    expect(executeTool).toHaveBeenCalledTimes(2)
+    expect(executeTool).toHaveBeenCalledTimes(3)
     expect(items).toHaveLength(2)
     expect(items[0]).toMatchObject({
       source: 'gmail',
@@ -49,13 +51,23 @@ describe('gmailConnector', () => {
     expect(items[1]!.externalId).toBe('m2')
   })
 
-  it('uses a 90-day query window on load', async () => {
-    executeTool.mockResolvedValueOnce({ messages: [] })
+  it('queries the inbox window then the sent history on load', async () => {
+    executeTool.mockResolvedValue({ messages: [] })
     await collect(
       gmailConnector.load({ userId: 'u1', source: 'gmail', lookbackDays: 90, cursor: null }),
     )
-    const call = executeTool.mock.calls[0]!
-    expect(call[0]).toBe('GMAIL_FETCH_EMAILS')
-    expect((call[2] as { query: string }).query).toBe('newer_than:90d')
+    const inbox = executeTool.mock.calls[0]!
+    const sent = executeTool.mock.calls[1]!
+    expect(inbox[0]).toBe('GMAIL_FETCH_EMAILS')
+    expect((inbox[2] as { query: string }).query).toBe('newer_than:90d')
+    expect((sent[2] as { query: string }).query).toBe('in:sent newer_than:730d')
+  })
+
+  it('does not crash when the toolkit returns an empty response', async () => {
+    executeTool.mockResolvedValue(undefined)
+    const items = await collect(
+      gmailConnector.load({ userId: 'u1', source: 'gmail', lookbackDays: 90, cursor: null }),
+    )
+    expect(items).toEqual([])
   })
 })
