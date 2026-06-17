@@ -3,12 +3,30 @@
 // Today: the structured morning briefing. Fetches /api/today (grounded cards
 // from the real retrieval pipeline) and renders them. Publishes the card count
 // so the sidebar Today badge stays in sync without its own retrieval call.
+//
+// Navigating back to Today should feel instant, not reload from scratch: we cache
+// the last brief in sessionStorage, paint it immediately on mount, then revalidate
+// in the background (stale-while-revalidate). The server caches the brief too, so
+// that revalidation is a cheap cache hit rather than a full pipeline + LLM run.
 
 import { useEffect, useState } from 'react'
 import { BriefCard } from '@/components/today/BriefCard'
 import { CardSkeletonList } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import type { TodayResponse } from '@/lib/api/today-schema'
+
+const TODAY_CACHE_KEY = 'zrux:today-data'
+
+// Last rendered brief, persisted across client navigations within the session.
+// Returns null on miss or any parse/storage error (treated as a cold load).
+function readCachedToday(): TodayResponse | null {
+  try {
+    const raw = sessionStorage.getItem(TODAY_CACHE_KEY)
+    return raw ? (JSON.parse(raw) as TodayResponse) : null
+  } catch {
+    return null
+  }
+}
 
 function timeGreeting(now: Date): string {
   const h = now.getHours()
@@ -32,25 +50,34 @@ export default function TodayPage() {
   // leads with preference-matched items rather than pure time-sensitivity, so the
   // subtitle below has to drop the "ranked by what is most time-sensitive" claim.
   const shaped =
-    data?.personalization != null &&
-    data.personalization.standing + data.personalization.scoped > 0
+    data?.personalization != null && data.personalization.standing + data.personalization.scoped > 0
 
   useEffect(() => {
     let alive = true
+
+    // Paint the last brief immediately so a repeat visit shows cards, not a
+    // skeleton. The fetch below silently revalidates against the (cached) server.
+    const cached = readCachedToday()
+    if (cached) setData(cached)
+
     async function load() {
       try {
         const res = await fetch('/api/today')
         if (!res.ok) {
-          if (alive) setError(true)
+          // Keep a good cached brief on screen rather than flipping to the error
+          // state over a transient revalidation failure.
+          if (alive && !cached) setError(true)
           return
         }
         const json = (await res.json()) as TodayResponse
         if (!alive) return
         setData(json)
+        setError(false)
+        sessionStorage.setItem(TODAY_CACHE_KEY, JSON.stringify(json))
         sessionStorage.setItem('zrux:today-count', String(json.cards.length))
         window.dispatchEvent(new Event('zrux:today-count'))
       } catch {
-        if (alive) setError(true)
+        if (alive && !cached) setError(true)
       }
     }
     void load()

@@ -11,12 +11,17 @@ const m = vi.hoisted(() => {
     getUserId: vi.fn(),
     retrieve: vi.fn(),
     generateObject: vi.fn(),
+    cacheGet: vi.fn(),
+    cacheSet: vi.fn(),
   }
 })
 
 vi.mock('@/lib/auth/session', () => ({
   getUserId: m.getUserId,
   UnauthorizedError: m.FakeUnauthorized,
+}))
+vi.mock('@/lib/cache/today-cache', () => ({
+  todayCache: { get: m.cacheGet, set: m.cacheSet },
 }))
 vi.mock('@/lib/retrieval/pipeline', () => ({ retrieve: m.retrieve }))
 vi.mock('@/lib/retrieval/synthesize', () => ({
@@ -33,7 +38,14 @@ vi.mock('ai', () => ({ generateObject: m.generateObject }))
 
 import { GET } from './route'
 
-const req = { headers: { get: () => null } } as never
+// Fake request: the route reads headers (auth) and nextUrl.searchParams (the
+// `refresh` cache bypass). `refresh` toggles the ?refresh=1 query param.
+function makeReq(refresh = false): never {
+  const searchParams = new URLSearchParams(refresh ? { refresh: '1' } : {})
+  return { headers: { get: () => null }, nextUrl: { searchParams } } as never
+}
+
+const req = makeReq()
 
 const citation = {
   n: 1,
@@ -76,6 +88,9 @@ describe('GET /api/today', () => {
     m.getUserId.mockReset().mockResolvedValue('u1')
     m.retrieve.mockReset()
     m.generateObject.mockReset()
+    // Default: cache miss, so each test runs the full pipeline unless it opts in.
+    m.cacheGet.mockReset().mockResolvedValue(null)
+    m.cacheSet.mockReset().mockResolvedValue(undefined)
   })
 
   it('returns an empty briefing and skips the LLM when context is thin', async () => {
@@ -140,6 +155,8 @@ describe('GET /api/today personalization', () => {
     m.getUserId.mockReset().mockResolvedValue('u1')
     m.retrieve.mockReset()
     m.generateObject.mockReset()
+    m.cacheGet.mockReset().mockResolvedValue(null)
+    m.cacheSet.mockReset().mockResolvedValue(undefined)
   })
 
   it('passes the profile counts through to the payload and grounds cards', async () => {
@@ -189,5 +206,57 @@ describe('GET /api/today personalization', () => {
     expect(json.cards).toHaveLength(0)
     expect(json.personalization).toEqual({ standing: 2, scoped: 1 })
     expect(m.generateObject).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/today caching', () => {
+  beforeEach(() => {
+    m.getUserId.mockReset().mockResolvedValue('u1')
+    m.retrieve.mockReset()
+    m.generateObject.mockReset()
+    m.cacheGet.mockReset().mockResolvedValue(null)
+    m.cacheSet.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('returns the cached brief without running the pipeline or LLM on a hit', async () => {
+    const cached = { cards: [card()], itemCount: 9, relaxed: false, empty: false }
+    m.cacheGet.mockResolvedValue(cached)
+
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ itemCount: 9, empty: false })
+    expect(m.cacheGet).toHaveBeenCalledWith('u1')
+    expect(m.retrieve).not.toHaveBeenCalled()
+    expect(m.generateObject).not.toHaveBeenCalled()
+  })
+
+  it('stores a freshly computed non-empty brief in the cache', async () => {
+    m.retrieve.mockResolvedValue(retrieveResult())
+    m.generateObject.mockResolvedValue({ object: { cards: [card()] } })
+
+    await GET(req)
+    expect(m.cacheSet).toHaveBeenCalledTimes(1)
+    expect(m.cacheSet.mock.calls[0]![0]).toBe('u1')
+    expect(m.cacheSet.mock.calls[0]![1]).toMatchObject({ empty: false })
+  })
+
+  it('does not cache an empty (thin) brief', async () => {
+    m.retrieve.mockResolvedValue(
+      retrieveResult({ context: { block: '', citations: [] }, itemCount: 0 }),
+    )
+    await GET(req)
+    expect(m.cacheSet).not.toHaveBeenCalled()
+  })
+
+  it('bypasses the cache and recomputes when refresh=1', async () => {
+    m.cacheGet.mockResolvedValue({ cards: [], itemCount: 1, relaxed: false, empty: false })
+    m.retrieve.mockResolvedValue(retrieveResult())
+    m.generateObject.mockResolvedValue({ object: { cards: [card()] } })
+
+    const res = await GET(makeReq(true))
+    expect(res.status).toBe(200)
+    expect(m.cacheGet).not.toHaveBeenCalled()
+    expect(m.retrieve).toHaveBeenCalledTimes(1)
+    expect(m.cacheSet).toHaveBeenCalledTimes(1)
   })
 })
