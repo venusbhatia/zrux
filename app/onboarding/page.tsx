@@ -5,7 +5,7 @@
 // kickoff and OAuth callback (which enqueues the 90-day load) already exist; this
 // is the guided surface over them.
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Icon } from '@/components/icons'
@@ -36,12 +36,29 @@ function OnboardingInner() {
 
   useEffect(() => {
     if (params.get('connected')) setNotice('Source connected. Indexing has started.')
+    if (params.get('pending')) setNotice('Finishing up your connection...')
     if (params.get('error')) setNotice('That connection did not complete. Try again.')
   }, [params])
+
+  // Ask the server to re-check this tenant's 'initiated' rows against live Composio
+  // status (active -> finalize + enqueue load; terminal or past-TTL -> error).
+  const reconcile = useCallback(() => {
+    void fetch('/api/connections/reconcile', { method: 'POST' }).catch(() => {})
+  }, [])
+
+  // Reconcile immediately on mount, then keep reconciling (throttled) inside the
+  // poll while any row is still 'initiated'. A flow the user abandoned (back button
+  // out of the Composio screen) never hits the OAuth callback, and a connection can
+  // go ACTIVE a beat AFTER the callback fired. Without an ongoing re-check the row
+  // would sit 'initiated' forever: false "connecting", load never enqueued, no data.
+  useEffect(() => {
+    reconcile()
+  }, [reconcile])
 
   useEffect(() => {
     let alive = true
     let id: ReturnType<typeof setInterval> | undefined
+    let tick = 0
     async function poll() {
       try {
         const res = await fetch('/api/connections')
@@ -49,9 +66,15 @@ function OnboardingInner() {
         const json = (await res.json()) as { connections: Connection[] }
         if (!alive) return
         setConnections(json.connections)
-        // First items have landed: the unlock is available, so stop the fast
-        // 3s poll. Status keeps refreshing on the user's next navigation.
-        if (json.connections.some((c) => c.itemCount > 0) && id) {
+        const stillInitiated = json.connections.some((c) => c.status === 'initiated')
+        // Re-reconcile in-flight rows ~every 9s (every 3rd tick) so a connection
+        // that activates just after the callback gets finalized, and an abandoned
+        // one flips to 'error' at its TTL — without hammering Composio every tick.
+        tick++
+        if (stillInitiated && tick % 3 === 0) reconcile()
+        // Settle the fast poll only once data has landed AND nothing is still
+        // mid-connection; otherwise keep watching so initiated rows resolve.
+        if (!stillInitiated && json.connections.some((c) => c.itemCount > 0) && id) {
           clearInterval(id)
           id = undefined
         }
@@ -65,7 +88,7 @@ function OnboardingInner() {
       alive = false
       if (id) clearInterval(id)
     }
-  }, [])
+  }, [reconcile])
 
   const bySource = new Map(connections.map((c) => [c.source, c]))
   const hasData = connections.some((c) => c.itemCount > 0)
@@ -119,7 +142,12 @@ function OnboardingInner() {
         {CONNECTABLE.map((source) => {
           const meta = sourceMeta(source)
           const c = bySource.get(source)
-          const connected = Boolean(c)
+          // "Connected" means the Composio account is actually ACTIVE, not merely
+          // that a row exists. An 'initiated' (OAuth started, never finished) or
+          // 'error' row is NOT connected: keep the action button so the user can
+          // retry instead of seeing a permanent, false "Working" badge.
+          const connected = c?.status === 'active'
+          const retry = Boolean(c) && !connected
           return (
             <div
               key={source}
@@ -145,7 +173,7 @@ function OnboardingInner() {
                   disabled={connecting === source}
                   className="rounded-pill bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-press disabled:opacity-50"
                 >
-                  {connecting === source ? 'Opening...' : 'Connect'}
+                  {connecting === source ? 'Opening...' : retry ? 'Retry' : 'Connect'}
                 </button>
               )}
             </div>
@@ -160,6 +188,9 @@ function OnboardingInner() {
           className="rounded-pill bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-accent-press disabled:opacity-50"
         >
           {hasData ? 'Open zrux' : 'Waiting for first items...'}
+        </button>
+        <button onClick={reconcile} className="text-sm text-muted hover:text-ink">
+          Refresh status
         </button>
         <Link href="/today" className="text-sm text-muted hover:text-ink">
           Skip for now
