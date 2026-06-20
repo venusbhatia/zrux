@@ -56,9 +56,15 @@ async function runIngest(payload: IngestPayload) {
 
 export const ingestTask = task({
   id: 'ingest-source',
-  maxDuration: 600,
+  // Cap a hung connector's per-attempt compute. maxDuration only bills seconds actually
+  // used, so this bounds runaway/stalled runs, not the normal path. First-run load
+  // backfills (e.g. Gmail 90d) still fit comfortably under 300s at this scale.
+  maxDuration: 300,
   retry: {
-    maxAttempts: 5,
+    // 3 attempts (was 5): each retry is a fresh cold start, so on a chronically failing
+    // connection (expired OAuth / stuck source) the extra attempts burn real compute for
+    // no payoff. Backoff + jitter unchanged.
+    maxAttempts: 3,
     factor: 2,
     minTimeoutInMs: 1000,
     maxTimeoutInMs: 30_000,
