@@ -15,12 +15,37 @@ import {
   setLangfuseTracerProvider,
   startActiveObservation,
 } from '@langfuse/tracing'
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
+import {
+  NodeTracerProvider,
+  ParentBasedSampler,
+  TraceIdRatioBasedSampler,
+} from '@opentelemetry/sdk-trace-node'
 import type { AttributeValue } from '@opentelemetry/api'
 import type { TelemetrySettings } from 'ai'
 
 export const tracingEnabled =
   Boolean(process.env.LANGFUSE_PUBLIC_KEY) && Boolean(process.env.LANGFUSE_SECRET_KEY)
+
+// Langfuse Cloud's free tier bills EVERY observation (span/generation/event), not
+// just LLM calls, against a 50k-units/month ceiling. The ingestion plane is the
+// volume driver: a single 90-day backfill embeds + enriches + extracts thousands
+// of items, each its own observation, and can drain the whole month in one run.
+// So we split tracing by plane (mirrors the ingestion-plane/answer-plane split):
+//
+//   answer plane  - low volume, high value (the graded path). Always traced.
+//   ingestion plane - high volume, low value. Off by default; flip on for a
+//                     controlled demo run with LANGFUSE_TRACE_INGESTION=true.
+//
+// Embeddings are never traced anywhere: deterministic, highest-cardinality, zero
+// diagnostic value. LANGFUSE_SAMPLE_RATE is a global belt-and-suspenders sampler
+// (0..1, default 1) applied at the trace root, so subsampling keeps traces whole.
+export const traceIngestion = tracingEnabled && process.env.LANGFUSE_TRACE_INGESTION === 'true'
+
+function sampleRate(): number {
+  const raw = Number(process.env.LANGFUSE_SAMPLE_RATE)
+  if (!Number.isFinite(raw)) return 1
+  return Math.min(1, Math.max(0, raw))
+}
 
 // Defense in depth: redact obvious secrets from any string that flows into a span
 // before it leaves the process. Prompts and completions are the signal we want to
@@ -43,7 +68,12 @@ export function initTracing(): void {
     environment: process.env.NODE_ENV,
     mask,
   })
-  const provider = new NodeTracerProvider({ spanProcessors: [processor] })
+  const provider = new NodeTracerProvider({
+    // ParentBasedSampler so a sampling decision at the trace root propagates to
+    // every child span - we never want half a trace. Default rate 1 = unchanged.
+    sampler: new ParentBasedSampler({ root: new TraceIdRatioBasedSampler(sampleRate()) }),
+    spanProcessors: [processor],
+  })
   // Deliberately NOT provider.register() - that would replace the global tracer
   // provider Sentry installed. setLangfuseTracerProvider keeps it isolated.
   setLangfuseTracerProvider(provider)
@@ -69,6 +99,18 @@ export function aiTelemetry(
     tracer: getLangfuseTracer(),
     ...(metadata ? { metadata } : {}),
   }
+}
+
+// Ingestion-plane telemetry. Same shape as aiTelemetry but gated on
+// traceIngestion, so the high-volume enrich/extract generations emit nothing
+// against the 50k-unit budget unless LANGFUSE_TRACE_INGESTION=true is set for a
+// deliberate, scoped ingestion-tracing run.
+export function ingestTelemetry(
+  functionId: string,
+  metadata?: Record<string, AttributeValue>,
+): TelemetrySettings {
+  if (!traceIngestion) return { isEnabled: false }
+  return aiTelemetry(functionId, metadata)
 }
 
 // Wrap a non-AI stage (cache check, hybrid search, rerank, rollup) in a Langfuse

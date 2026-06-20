@@ -7,7 +7,7 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { chatModel, FALLBACK_MODEL, MAX_OUTPUT_TOKENS, withRetry } from '../llm/gateway'
-import { aiTelemetry } from '../observability/langfuse'
+import { ingestTelemetry } from '../observability/langfuse'
 import type { RawItem } from '../connectors/types'
 
 const ENTITY_TYPES = ['person', 'company', 'project'] as const
@@ -107,7 +107,7 @@ export async function extractTriples(item: RawItem): Promise<Triple[]> {
       system: EXTRACT_SYSTEM,
       prompt: `${header}\n\n${body}`,
       maxTokens: MAX_OUTPUT_TOKENS.triples,
-      experimental_telemetry: aiTelemetry('triple-extraction'),
+      experimental_telemetry: ingestTelemetry('triple-extraction'),
     }),
   )
   // Drop self-loops and placeholder/generic names defensively.

@@ -4,7 +4,6 @@
 
 import { embed, embedMany } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
-import { aiTelemetry } from '../observability/langfuse'
 
 function requireEnv(name: string): string {
   const v = process.env[name]
@@ -29,11 +28,13 @@ function embeddingModel() {
   return openaiClient().embedding(EMBED_MODEL, { dimensions: EMBED_DIMS })
 }
 
+// Embeddings are intentionally NOT traced: deterministic, highest-cardinality
+// (one+ per ingested item across 90-day backfills), and of near-zero diagnostic
+// value. Tracing them is what drains the Langfuse free tier's 50k-unit budget.
 export async function embedText(text: string): Promise<number[]> {
   const { embedding } = await embed({
     model: embeddingModel(),
     value: text,
-    experimental_telemetry: aiTelemetry('embed-text'),
   })
   return embedding
 }
@@ -43,7 +44,6 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
   const { embeddings } = await embedMany({
     model: embeddingModel(),
     values: texts,
-    experimental_telemetry: aiTelemetry('embed-texts', { batchSize: texts.length }),
   })
   return embeddings
 }
