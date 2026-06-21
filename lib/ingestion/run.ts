@@ -40,7 +40,14 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
 
   // Compare as epoch ms: PostgREST returns timestamptz as "...+00:00" but
   // Date.toISOString() produces "...Z" -- string equality is unreliable across formats.
-  if (existing && new Date(existing.source_updated_at).getTime() === raw.sourceUpdatedAt.getTime()) return 0
+  if (existing && new Date(existing.source_updated_at).getTime() === raw.sourceUpdatedAt.getTime()) {
+    const { count } = await db
+      .from('context_chunk')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('item_id', existing.id)
+    if ((count ?? 0) > 0) return 0
+  }
 
   // 1. Persist normalized item (raw payload kept as episodic ground truth).
   const insert = normalizeItem(userId, raw)
