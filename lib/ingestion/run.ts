@@ -74,13 +74,11 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
   // Step 9-10: triple extraction + entity resolution (gated to high-signal
   // sources inside extractAndResolve). Best-effort and isolated: a graph failure
   // must never undo a successfully embedded item. Toggle off with EXTRACT_TRIPLES=false.
-  // Triple extraction is opt-in (default OFF). In production it was failing ~99%
-  // of calls: generateObject's strict schema parse rejects what OpenRouter+Haiku
-  // returns (structured-output mode not honored), and withRetry then re-ran each
-  // deterministic failure 3x - ~90k LLM calls/month to build an LLM-fact graph we
-  // demoted in favor of interaction-metadata scoring. Set EXTRACT_TRIPLES=true to
-  // re-enable (and fix the structured-output path first).
-  if (process.env.EXTRACT_TRIPLES === 'true') {
+  // Triple extraction (high-signal sources only). It previously failed ~99% under a
+  // strict Zod schema haiku couldn't satisfy via tool-calling; it now uses a
+  // permissive schema normalized in code (lib/graph/triple-extraction.ts) and
+  // succeeds. On by default; set EXTRACT_TRIPLES=false to disable.
+  if (process.env.EXTRACT_TRIPLES !== 'false') {
     try {
       await extractAndResolve(userId, raw, item.id)
     } catch (err) {

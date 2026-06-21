@@ -12,6 +12,8 @@ import type { RawItem } from '../connectors/types'
 
 const ENTITY_TYPES = ['person', 'company', 'project'] as const
 
+// Strict shape - used as the exported Triple type and the normalization target.
+// The LLM is NOT asked to satisfy this directly (see tripleLLMSchema).
 const tripleSchema = z.object({
   triples: z.array(
     z.object({
@@ -26,6 +28,40 @@ const tripleSchema = z.object({
 })
 
 export type Triple = z.infer<typeof tripleSchema>['triples'][number]
+
+// Permissive schema for the actual LLM call. For Anthropic models via the
+// OpenAI-compat provider on OpenRouter, generateObject runs in tool-calling mode,
+// where the AI SDK validates the model's tool-call arguments against this Zod
+// schema and THROWS on any mismatch. Against the strict schema above, haiku kept
+// emitting an out-of-set *_type or out-of-range confidence -> NoObjectGeneratedError
+// on ~99% of items. We accept loose values here and normalize to strict Triples in
+// code below: lenient at the boundary, strict internally.
+const tripleLLMSchema = z.object({
+  triples: z.array(
+    z.object({
+      subject: z.string(),
+      subject_type: z.string().nullish(),
+      relation: z.string(),
+      object: z.string(),
+      object_type: z.string().nullish(),
+      confidence: z.number().nullish(),
+    }),
+  ),
+})
+
+function normalizeType(value: string | null | undefined): (typeof ENTITY_TYPES)[number] | null {
+  const v = (value ?? '').trim().toLowerCase()
+  if (v === 'person' || v === 'people' || v === 'individual') return 'person'
+  if (v === 'company' || v === 'org' || v === 'organization' || v === 'organisation')
+    return 'company'
+  if (v === 'project' || v === 'initiative') return 'project'
+  return null
+}
+
+function clampConfidence(value: number | null | undefined): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0.7
+  return Math.min(1, Math.max(0, value))
+}
 
 // Reject placeholder / generic names the model sometimes emits despite the
 // prompt, so they never become graph nodes ("<UNKNOWN>", "the team", "us").
@@ -100,26 +136,39 @@ export async function extractTriples(item: RawItem): Promise<Triple[]> {
     .join('\n')
   const body = item.body.slice(0, 4000)
 
-  // No retries: these failures are deterministic (schema parse of the model's
-  // output), so re-running just triples the cost without ever succeeding. The
-  // caller treats extraction as best-effort and self-heals on the next poll.
+  // retries:1 - the permissive schema means validation no longer throws, so any
+  // remaining failure is transient (network/5xx). One retry is plenty and cannot
+  // re-create the old 3x amplification from deterministic parse failures.
   const { object } = await withRetry(
     () =>
       generateObject({
         model: chatModel(FALLBACK_MODEL), // Haiku-class: extraction is a cheap structured pass
-        schema: tripleSchema,
+        schema: tripleLLMSchema,
         system: EXTRACT_SYSTEM,
         prompt: `${header}\n\n${body}`,
         maxTokens: MAX_OUTPUT_TOKENS.triples,
         experimental_telemetry: ingestTelemetry('triple-extraction'),
       }),
-    { retries: 0 },
+    { retries: 1 },
   )
-  // Drop self-loops and placeholder/generic names defensively.
-  return object.triples.filter(
-    (t) =>
-      isNamedEntity(t.subject) &&
-      isNamedEntity(t.object) &&
-      t.subject.trim().toLowerCase() !== t.object.trim().toLowerCase(),
-  )
+  // Normalize permissive model output to strict Triples. Drop (never guess) a triple
+  // with an unmappable type, placeholder/generic name, or self-loop: prefer a missed
+  // edge over a wrong one (CLAUDE.md entity-resolution rules).
+  const triples: Triple[] = []
+  for (const t of object.triples) {
+    const subjectType = normalizeType(t.subject_type)
+    const objectType = normalizeType(t.object_type)
+    if (!subjectType || !objectType) continue
+    if (!isNamedEntity(t.subject) || !isNamedEntity(t.object)) continue
+    if (t.subject.trim().toLowerCase() === t.object.trim().toLowerCase()) continue
+    triples.push({
+      subject: t.subject,
+      subject_type: subjectType,
+      relation: t.relation,
+      object: t.object,
+      object_type: objectType,
+      confidence: clampConfidence(t.confidence),
+    })
+  }
+  return triples
 }
