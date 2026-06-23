@@ -9,7 +9,7 @@
 import { generateObject } from 'ai'
 import { retrieve } from '@/lib/retrieval/pipeline'
 import { isThin } from '@/lib/retrieval/synthesize'
-import { chatModel, MAX_OUTPUT_TOKENS, withRetry } from '@/lib/llm/gateway'
+import { openaiModel, MAX_OUTPUT_TOKENS, withRetry } from '@/lib/llm/gateway'
 import { aiTelemetry } from '@/lib/observability/langfuse'
 import { todayResponseSchema, type TodayCard, type TodayResponse } from '@/lib/api/today-schema'
 import type { z } from 'zod'
@@ -79,7 +79,7 @@ export async function buildTodayBriefing(userId: string): Promise<TodayResponse>
 
   const { object } = await withRetry(() =>
     generateObject({
-      model: chatModel(),
+      model: openaiModel(),
       schema: todayResponseSchema,
       system: TODAY_SYSTEM,
       prompt: `Today is ${generatedAt}.\n\nCONTEXT:\n${context.block}`,
