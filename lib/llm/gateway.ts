@@ -1,5 +1,10 @@
-// LLM gateway. OpenRouter via the Vercel AI SDK (OpenAI-compatible endpoint).
+// LLM gateway. OpenRouter via the Vercel AI SDK (OpenAI-compatible endpoint),
+// with native OpenAI as a last-resort fallback.
 // Primary: anthropic/claude-sonnet-4-6, fallback: anthropic/claude-haiku-4-5.
+//
+// Fallback chain (non-streaming): OpenRouter primary -> OpenRouter fallback ->
+// OpenAI gpt-4o-mini. Streaming synthesis: OpenRouter primary -> OpenAI (when
+// circuit is OPEN). Only GatewayDownError when all three fail.
 //
 // Phase 5 hardening (CLAUDE.md §10, plan §5): a Redis-backed circuit breaker in
 // front of the gateway plus a fallback chain. State machine:
@@ -37,8 +42,26 @@ function openrouterClient(): ReturnType<typeof createOpenAI> {
   return openrouter
 }
 
+// Native OpenAI client — no baseURL override, uses api.openai.com directly.
+// Shares OPENAI_API_KEY with the embeddings path. Used as last-resort fallback
+// when OpenRouter balance is zero or the circuit breaker is OPEN.
+let openai: ReturnType<typeof createOpenAI> | null = null
+function openaiNativeClient(): ReturnType<typeof createOpenAI> {
+  if (!openai) {
+    openai = createOpenAI({ apiKey: requireEnv('OPENAI_API_KEY') })
+  }
+  return openai
+}
+
 export const PRIMARY_MODEL = process.env.OPENROUTER_PRIMARY_MODEL ?? 'anthropic/claude-sonnet-4-6'
 export const FALLBACK_MODEL = process.env.OPENROUTER_FALLBACK_MODEL ?? 'anthropic/claude-haiku-4-5'
+export const OPENAI_FALLBACK_MODEL = process.env.OPENAI_FALLBACK_MODEL ?? 'gpt-4o-mini'
+
+// Native OpenAI model handle. Used by callWithFallback (level 3) and the
+// streaming answer route when the OpenRouter circuit is OPEN.
+export function openaiModel(modelId: string = OPENAI_FALLBACK_MODEL): LanguageModelV1 {
+  return openaiNativeClient()(modelId)
+}
 
 // Output-token caps per call kind. With maxTokens unset, OpenRouter's
 // affordability gate reserves the model's FULL max output (64k for sonnet), so a
@@ -218,15 +241,15 @@ export async function withRetry<T>(
   throw lastErr
 }
 
-// Primary (breaker + retry) -> fallback (retry only; it is the last resort).
-// Used by non-streaming callers (plan). Throws GatewayDownError when both fail,
-// which callers catch to degrade gracefully.
+// Primary (breaker + retry) -> OpenRouter fallback (retry) -> OpenAI (retry).
+// Used by non-streaming callers (plan, briefing synthesis). Only throws
+// GatewayDownError when all three levels fail.
 export async function callWithFallback<T>(fn: (model: LanguageModelV1) => Promise<T>): Promise<T> {
   try {
     return await withCircuitBreaker(() => withRetry(() => fn(chatModel(PRIMARY_MODEL))))
   } catch (primaryErr) {
-    // Capture the primary failure even when the fallback recovers: a silently
-    // degrading primary model is invisible to the route (it sees a success).
+    // Capture even when the next level recovers: a silently degrading primary is
+    // invisible to the route (it sees a success).
     captureError('gateway', primaryErr, {
       stage: 'primary-failed-falling-back',
       primary: PRIMARY_MODEL,
@@ -235,9 +258,17 @@ export async function callWithFallback<T>(fn: (model: LanguageModelV1) => Promis
     try {
       return await withRetry(() => fn(chatModel(FALLBACK_MODEL)))
     } catch (fallbackErr) {
-      throw new GatewayDownError(
-        `primary and fallback both failed: ${(fallbackErr as Error).message}`,
-      )
+      // Both OpenRouter models failed — try native OpenAI as last resort.
+      captureError('gateway', fallbackErr, {
+        stage: 'openrouter-fallback-failed-trying-openai',
+        fallback: FALLBACK_MODEL,
+        openai: OPENAI_FALLBACK_MODEL,
+      })
+      try {
+        return await withRetry(() => fn(openaiModel()))
+      } catch (openaiErr) {
+        throw new GatewayDownError(`all models failed: ${(openaiErr as Error).message}`)
+      }
     }
   }
 }
