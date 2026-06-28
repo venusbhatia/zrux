@@ -74,6 +74,10 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
   // Step 9-10: triple extraction + entity resolution (gated to high-signal
   // sources inside extractAndResolve). Best-effort and isolated: a graph failure
   // must never undo a successfully embedded item. Toggle off with EXTRACT_TRIPLES=false.
+  // Triple extraction (high-signal sources only). It previously failed ~99% under a
+  // strict Zod schema haiku couldn't satisfy via tool-calling; it now uses a
+  // permissive schema normalized in code (lib/graph/triple-extraction.ts) and
+  // succeeds. On by default; set EXTRACT_TRIPLES=false to disable.
   if (process.env.EXTRACT_TRIPLES !== 'false') {
     try {
       await extractAndResolve(userId, raw, item.id)

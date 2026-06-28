@@ -10,7 +10,7 @@ import type { SourceName } from '../lib/connectors/types'
 import { getConnector } from '../lib/connectors/registry'
 import { ingestItems } from '../lib/ingestion/run'
 import { getSyncState } from '../lib/db/sync-state'
-import { flushTracing, initTracing, tracingEnabled } from '../lib/observability/langfuse'
+import { flushTracing, initTracing, traceIngestion } from '../lib/observability/langfuse'
 
 interface IngestPayload {
   userId: string
@@ -68,9 +68,11 @@ export const ingestTask = task({
     // This worker runs outside Next.js, so the instrumentation hook never fires -
     // set up the isolated Langfuse provider here. The enrich/embed generations
     // group under one "ingest-source" trace per run; flush before the task exits.
+    // Ingestion tracing is opt-in (traceIngestion) - the bulk of unit consumption
+    // lives here, so by default the whole ingest run emits zero Langfuse units.
+    if (!traceIngestion) return await runIngest(payload)
     initTracing()
     try {
-      if (!tracingEnabled) return await runIngest(payload)
       return await propagateAttributes(
         { userId: payload.userId, traceName: 'ingest-source', tags: ['ingestion', payload.source] },
         () => startActiveObservation('ingest-source', () => runIngest(payload)),
