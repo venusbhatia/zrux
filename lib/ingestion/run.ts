@@ -24,6 +24,30 @@ export interface IngestStats {
 
 async function ingestOne(userId: string, raw: RawItem): Promise<number> {
   const db = createServiceClient()
+  const dateIso = raw.sourceUpdatedAt.toISOString()
+
+  // Skip re-embedding if this exact version is already in the DB.
+  // Connectors return already-seen items on every poll (they filter by date range,
+  // not by "new since last embed"). Without this guard every poll re-chunks,
+  // re-enriches, and re-embeds identical content -- the main OpenAI cost driver.
+  const { data: existing } = await db
+    .from('context_item')
+    .select('id, source_updated_at')
+    .eq('user_id', userId)
+    .eq('source', raw.source)
+    .eq('external_id', raw.externalId)
+    .maybeSingle()
+
+  // Compare as epoch ms: PostgREST returns timestamptz as "...+00:00" but
+  // Date.toISOString() produces "...Z" -- string equality is unreliable across formats.
+  if (existing && new Date(existing.source_updated_at).getTime() === raw.sourceUpdatedAt.getTime()) {
+    const { count } = await db
+      .from('context_chunk')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('item_id', existing.id)
+    if ((count ?? 0) > 0) return 0
+  }
 
   // 1. Persist normalized item (raw payload kept as episodic ground truth).
   const insert = normalizeItem(userId, raw)
@@ -38,7 +62,6 @@ async function ingestOne(userId: string, raw: RawItem): Promise<number> {
   })
 
   // 2. Chunk + enrich.
-  const dateIso = raw.sourceUpdatedAt.toISOString()
   const pieces = chunkText(raw.body)
   if (pieces.length === 0) return 0
   const contents = await Promise.all(pieces.map((p) => enrichChunk(raw, p, dateIso)))
