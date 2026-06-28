@@ -7,7 +7,7 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { chatModel, FALLBACK_MODEL, MAX_OUTPUT_TOKENS, withRetry } from '../llm/gateway'
-import { aiTelemetry } from '../observability/langfuse'
+import { ingestTelemetry } from '../observability/langfuse'
 import type { RawItem } from '../connectors/types'
 
 const ENTITY_TYPES = ['person', 'company', 'project'] as const
@@ -100,15 +100,20 @@ export async function extractTriples(item: RawItem): Promise<Triple[]> {
     .join('\n')
   const body = item.body.slice(0, 4000)
 
-  const { object } = await withRetry(() =>
-    generateObject({
-      model: chatModel(FALLBACK_MODEL), // Haiku-class: extraction is a cheap structured pass
-      schema: tripleSchema,
-      system: EXTRACT_SYSTEM,
-      prompt: `${header}\n\n${body}`,
-      maxTokens: MAX_OUTPUT_TOKENS.triples,
-      experimental_telemetry: aiTelemetry('triple-extraction'),
-    }),
+  // No retries: these failures are deterministic (schema parse of the model's
+  // output), so re-running just triples the cost without ever succeeding. The
+  // caller treats extraction as best-effort and self-heals on the next poll.
+  const { object } = await withRetry(
+    () =>
+      generateObject({
+        model: chatModel(FALLBACK_MODEL), // Haiku-class: extraction is a cheap structured pass
+        schema: tripleSchema,
+        system: EXTRACT_SYSTEM,
+        prompt: `${header}\n\n${body}`,
+        maxTokens: MAX_OUTPUT_TOKENS.triples,
+        experimental_telemetry: ingestTelemetry('triple-extraction'),
+      }),
+    { retries: 0 },
   )
   // Drop self-loops and placeholder/generic names defensively.
   return object.triples.filter(
