@@ -189,6 +189,22 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['briefing']['Insert']>
         Relationships: []
       }
+      user_activity: {
+        Row: {
+          user_id: string
+          last_active_at: string
+          last_login_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          last_active_at?: string
+          last_login_at?: string | null
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['user_activity']['Insert']>
+        Relationships: []
+      }
     }
     Functions: {
       hybrid_search: {

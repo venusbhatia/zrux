@@ -6,6 +6,7 @@
 
 import '../lib/ws-polyfill'
 import { schedules } from '@trigger.dev/sdk'
+import { activeUserIds } from '../lib/auth/activity'
 import type { SourceName } from '../lib/connectors/types'
 import { getConnector } from '../lib/connectors/registry'
 import { reconcileDeletions } from '../lib/db/slim'
@@ -24,10 +25,16 @@ export const slimSchedule = schedules.task({
       .eq('status', 'active')
     if (error) throw new Error(`slim list failed: ${error.message}`)
 
+    // Activity gate: only reconcile deletions for tenants active within the
+    // window. Deletion is the lowest-urgency pass, so there is no reason to walk
+    // sources for someone who is not using the app.
+    const active = await activeUserIds()
+    const conns = (data ?? []).filter((conn) => active.has(conn.user_id))
+
     const lookbackDays = Number(process.env.INGEST_LOOKBACK_DAYS ?? 90)
     const results: Array<Record<string, unknown>> = []
 
-    for (const conn of data ?? []) {
+    for (const conn of conns) {
       const source = conn.source as SourceName
       const connector = getConnector(source)
       const ctx = { userId: conn.user_id, source, lookbackDays, cursor: null }
@@ -51,6 +58,10 @@ export const slimSchedule = schedules.task({
       }
     }
 
-    return { connections: data?.length ?? 0, results }
+    return {
+      connections: conns.length,
+      skippedIdle: (data?.length ?? 0) - conns.length,
+      results,
+    }
   },
 })

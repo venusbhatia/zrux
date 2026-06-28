@@ -9,6 +9,7 @@ import '../lib/ws-polyfill'
 import { schedules, task, tasks } from '@trigger.dev/sdk'
 import { propagateAttributes, startActiveObservation } from '@langfuse/tracing'
 import { buildTodayBriefing } from '../lib/api/today-brief'
+import { activeUserIds } from '../lib/auth/activity'
 import { writeBriefing } from '../lib/db/briefing-cache'
 import { createServiceClient } from '../lib/db/supabase'
 import { flushTracing, initTracing, tracingEnabled } from '../lib/observability/langfuse'
@@ -63,7 +64,14 @@ export const briefingSchedule = schedules.task({
     if (error) throw new Error(`briefing list failed: ${error.message}`)
 
     // Distinct tenants: a user with multiple connected sources should get one brief.
-    const userIds = [...new Set((data ?? []).map((row) => row.user_id))]
+    // Activity gate: only precompute for tenants active within the window. An idle
+    // tenant gets their briefing computed inline (the /api/today fallback) the next
+    // time they log in, off the back of the catch-up poll — no point precomputing
+    // a brief nobody will read.
+    const active = await activeUserIds()
+    const userIds = [...new Set((data ?? []).map((row) => row.user_id))].filter((id) =>
+      active.has(id),
+    )
     // Idempotency bucket: one compute per tenant per calendar day, so a re-fired
     // schedule within the same day never double-enqueues.
     const dateBucket = payload.timestamp.toISOString().split('T')[0]
