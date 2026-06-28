@@ -33,8 +33,12 @@ export async function retrieve(
   userId: string,
   question: string,
   precomputedEmbedding?: number[],
+  precomputedPlan?: RetrievalPlan,
 ): Promise<RetrievalResult> {
-  const plan = await planQuery(question) // Stage 1 (AI SDK span: plan-query)
+  // Stage 1 (AI SDK span: plan-query). The route plans the query before the
+  // semantic-cache lookup (to derive the entity scope), so reuse that plan here
+  // rather than spending a second LLM call.
+  const plan = precomputedPlan ?? (await planQuery(question))
 
   // Stage 1a (meeting_prep only): plain semantic search fails this intent because
   // prep materials predate the meeting (the forward `after` filter drops them) and

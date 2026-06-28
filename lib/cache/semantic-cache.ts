@@ -12,13 +12,38 @@ import { Redis } from '@upstash/redis'
 export interface SemanticCacheEntry {
   embedding: number[]
   answer: string
+  // Entity-scope namespace (see entityScopeKey). Absent/null for questions that
+  // name no entity. Older entries written before this field default to null.
+  scope?: string | null
 }
 
 export interface SemanticCache {
-  // Returns a cached answer when cosine similarity >= threshold, else null.
-  get(userId: string, queryEmbedding: number[]): Promise<string | null>
-  // Stores the question embedding + answer. Called only on synthesis success.
-  set(userId: string, queryEmbedding: number[], answer: string): Promise<void>
+  // Returns a cached answer when cosine similarity >= threshold AND the entry's
+  // entity scope matches `scope`, else null.
+  get(userId: string, queryEmbedding: number[], scope?: string | null): Promise<string | null>
+  // Stores the question embedding + answer under its entity scope. Called only on
+  // synthesis success.
+  set(
+    userId: string,
+    queryEmbedding: number[],
+    answer: string,
+    scope?: string | null,
+  ): Promise<void>
+}
+
+// Namespace key for a question's entity scope. Two near-identical questions that
+// target different people ("Priya's blockers" vs "John's blockers") have nearly
+// identical embeddings, so without this they would collide on the embedding
+// bucket and one would serve the other's entity-scoped answer. Normalized
+// (lowercased + sorted) so paraphrases of the same scope share a bucket; null
+// when the question names no entity (the shared, original bucket).
+export function entityScopeKey(entities: string[] | undefined): string | null {
+  if (!entities || entities.length === 0) return null
+  const norm = entities
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0)
+    .sort()
+  return norm.length > 0 ? norm.join('|') : null
 }
 
 const THRESHOLD = Number(process.env.SEMANTIC_CACHE_THRESHOLD ?? '0.95')
@@ -60,7 +85,11 @@ function uuid(): string {
 export class RedisSemanticCache implements SemanticCache {
   constructor(private readonly redis: Redis) {}
 
-  async get(userId: string, queryEmbedding: number[]): Promise<string | null> {
+  async get(
+    userId: string,
+    queryEmbedding: number[],
+    scope: string | null = null,
+  ): Promise<string | null> {
     try {
       const ids = await this.redis.smembers(indexKey(userId))
       if (!ids || ids.length === 0) return null
@@ -75,6 +104,9 @@ export class RedisSemanticCache implements SemanticCache {
           stale.push(ids[i]!)
           return
         }
+        // Only consider entries in the same entity-scope namespace, so a
+        // differently-scoped near-neighbor can never serve its answer here.
+        if ((entry.scope ?? null) !== scope) return
         const similarity = cosine(queryEmbedding, entry.embedding)
         if (!best || similarity > best.similarity) {
           best = { answer: entry.answer, similarity }
@@ -98,10 +130,15 @@ export class RedisSemanticCache implements SemanticCache {
     }
   }
 
-  async set(userId: string, queryEmbedding: number[], answer: string): Promise<void> {
+  async set(
+    userId: string,
+    queryEmbedding: number[],
+    answer: string,
+    scope: string | null = null,
+  ): Promise<void> {
     try {
       const id = uuid()
-      const entry: SemanticCacheEntry = { embedding: queryEmbedding, answer }
+      const entry: SemanticCacheEntry = { embedding: queryEmbedding, answer, scope }
       await this.redis.set(entryKey(userId, id), entry, { ex: TTL_SECONDS })
       await this.redis.sadd(indexKey(userId), id)
       await this.redis.expire(indexKey(userId), TTL_SECONDS)
@@ -123,10 +160,19 @@ export class RedisSemanticCache implements SemanticCache {
 // No-op cache used when Redis env vars are absent: always misses, never stores.
 // Keeps local dev and CI (no Upstash credentials) on the full pipeline path.
 class NoopSemanticCache implements SemanticCache {
-  async get(): Promise<string | null> {
+  async get(
+    _userId: string,
+    _queryEmbedding: number[],
+    _scope?: string | null,
+  ): Promise<string | null> {
     return null
   }
-  async set(): Promise<void> {
+  async set(
+    _userId: string,
+    _queryEmbedding: number[],
+    _answer: string,
+    _scope?: string | null,
+  ): Promise<void> {
     return
   }
 }

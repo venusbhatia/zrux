@@ -49,6 +49,7 @@ interface SlackEnvelope {
     bot_id?: string
     channel?: string
     ts?: string
+    team?: string
     [key: string]: unknown
   }
 }
@@ -104,7 +105,12 @@ async function handleSlack(req: NextRequest, rawBody: string): Promise<Response>
     console.warn('[webhook:slack] event missing event_id and channel/ts; dropping')
     return Response.json({ ok: true, skipped: true })
   }
-  await enqueueEvent(userId, 'slack', event, dedupeId)
+  // The workspace id lives on the outer envelope as team_id; the inner message
+  // event has no team. Thread it onto the event so the connector can build the
+  // app_redirect permalink for real-time messages (otherwise they ingest with a
+  // null url until a later poll re-upserts them from history).
+  const eventWithTeam = { ...event, team: event.team ?? envelope.team_id }
+  await enqueueEvent(userId, 'slack', eventWithTeam, dedupeId)
   return Response.json({ ok: true, enqueued: true })
 }
 

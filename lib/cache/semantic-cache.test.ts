@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { Redis } from '@upstash/redis'
-import { RedisSemanticCache, semanticCache, type SemanticCacheEntry } from './semantic-cache'
+import {
+  RedisSemanticCache,
+  semanticCache,
+  entityScopeKey,
+  type SemanticCacheEntry,
+} from './semantic-cache'
 
 // A minimal in-memory fake of the Upstash Redis surface the cache uses. Stored
 // values are kept as parsed objects (the real client auto-(de)serializes JSON).
@@ -21,8 +26,12 @@ function fakeRedis(
   } as unknown as Redis
 }
 
-function entry(embedding: number[], answer: string): SemanticCacheEntry {
-  return { embedding, answer }
+function entry(
+  embedding: number[],
+  answer: string,
+  scope: string | null = null,
+): SemanticCacheEntry {
+  return { embedding, answer, scope }
 }
 
 describe('RedisSemanticCache.get', () => {
@@ -54,6 +63,32 @@ describe('RedisSemanticCache.get', () => {
     const cache = new RedisSemanticCache(redis)
     await expect(cache.get('u1', [1, 0, 0])).resolves.toBeNull()
   })
+
+  it('does not serve an entry from a different entity scope even on an exact embedding match', async () => {
+    // Same embedding (cosine 1.0) but the entry is scoped to "priya": a lookup
+    // scoped to "john" must miss, so a near-identical question about a different
+    // person never reuses the wrong answer.
+    const redis = fakeRedis({ 'sc:entry:u1:a': entry([1, 0, 0], 'priya answer', 'priya') }, ['a'])
+    const cache = new RedisSemanticCache(redis)
+    expect(await cache.get('u1', [1, 0, 0], 'john')).toBeNull()
+    expect(await cache.get('u1', [1, 0, 0], 'priya')).toBe('priya answer')
+    // An unscoped query (null) also must not pick up a scoped entry.
+    expect(await cache.get('u1', [1, 0, 0])).toBeNull()
+  })
+})
+
+describe('entityScopeKey', () => {
+  it('returns null when no entities are named', () => {
+    expect(entityScopeKey([])).toBeNull()
+    expect(entityScopeKey(undefined)).toBeNull()
+    expect(entityScopeKey(['  '])).toBeNull()
+  })
+
+  it('normalizes case and order so paraphrases of the same scope collide', () => {
+    expect(entityScopeKey(['Priya'])).toBe('priya')
+    expect(entityScopeKey(['John', 'Priya'])).toBe('john|priya')
+    expect(entityScopeKey(['Priya', 'John'])).toBe('john|priya')
+  })
 })
 
 describe('RedisSemanticCache.set', () => {
@@ -64,6 +99,17 @@ describe('RedisSemanticCache.set', () => {
     expect(redis.set).toHaveBeenCalledTimes(1)
     expect(redis.sadd).toHaveBeenCalledTimes(1)
     expect(redis.expire).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists the entity scope on the stored entry', async () => {
+    const redis = fakeRedis({}, [])
+    const cache = new RedisSemanticCache(redis)
+    await cache.set('u1', [1, 0, 0], 'answer', 'priya')
+    expect(redis.set).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ answer: 'answer', scope: 'priya' }),
+      expect.objectContaining({ ex: expect.any(Number) }),
+    )
   })
 
   it('atomically trims the index with spop when it exceeds the cap', async () => {
